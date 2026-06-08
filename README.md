@@ -21,7 +21,7 @@ The agent sends your current project state to another machine, runs the task
 there, and keeps every change on a new branch from this exact state.
 
 That machine can be any computer you can reach, or `/offload` can deploy a
-cloud one for you, much like Cursor Cloud Agents.
+cloud one for you on [Fly](https://fly.io), much like Cursor Cloud Agents.
 
 The run can continue even if your laptop sleeps or disconnects. It can send
 status updates, expose dev-server links, and use the agent remote controls you
@@ -37,6 +37,23 @@ curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/master/install-o
 
 Pass options after `bash -s --`, for example `--yes` to skip the prompt or
 `--silent` for quiet installs.
+
+## How It Works (For Nerds)
+
+`/offload` ships with a zero-install, rootless way to run the Nix package
+manager, and the skill helps manage the work of making your project runnable as
+a Nix flake. That lets the repo define the project environment the remote
+machine needs in order to work with it correctly.
+
+The next part is the remote target: a container designed for work, with the
+right tooling installed, runtime Nix builds, persistent state, and a way to
+expose dev servers running on its own `localhost:<port>` through authenticated
+public URLs. The skill includes instructions for deploying that container on Fly.
+
+The rest is integration polish, like checking and seeding GitHub credentials,
+git identity, repo state, and coding-agent login state for tools like Codex and
+Claude Code. The goal is simple: run the same project somewhere else and return
+the result as a normal branch.
 
 ## Packages
 
