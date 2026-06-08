@@ -7,7 +7,7 @@
 let
   sources = import ../../hm-base/npins;
   flake-compat = import sources.flake-compat;
-  offloads = (flake-compat { src = ../../../../..; }).defaultNix;
+  offloads = (flake-compat { src = sources.offloads; }).defaultNix;
   procps-container = pkgs.procps.override {
     withSystemd = false;
   };

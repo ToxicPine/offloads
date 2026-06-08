@@ -64,6 +64,18 @@
       "artifact": "nixexprs.tar.xz",
       "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1008282.331800de5053/nixexprs.tar.xz",
       "hash": "sha256-2fYATYjjbsF2ri3reTWXgBkrmwK5Hpj23CsTEdLA2fo="
+    },
+    "offloads": {
+      "type": "Git",
+      "repository": {
+        "type": "Git",
+        "url": "git+ssh://git@github.com/ToxicPine/offloads.git"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "ed3743efe05576e0354da86956b09c0a3fc5e120",
+      "url": null,
+      "hash": "sha256-1yJ4DDqqa1YaB4Rl5uATRaAKy5xQKrheeHWlV/HXygY="
     }
   },
   "version": 8

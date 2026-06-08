@@ -14,9 +14,9 @@ let
     inherit sources;
   };
   flake-compat = import sources.flake-compat;
-  nestail = pkgs.callPackage ../../../nestail { };
-  offloadsFlake = (flake-compat { src = ../../../..; }).defaultNix;
+  offloadsFlake = (flake-compat { src = sources.offloads; }).defaultNix;
   offloads = offloadsFlake.packages.${system};
+  nestail = offloads.nestail;
   openssh-container = pkgs.openssh.override {
     withFIDO = false;
     withPAM = false;

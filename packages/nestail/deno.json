@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net=0.0.0.0,127.0.0.1,localhost --allow-env=SCRAMJET_HOST,SCRAMJET_PORT,NESTAIL_AUTH_SECRET,NESTAIL_TRUST_PROXY_HEADERS src/server.ts",
+    "token": "deno run --allow-env=SCRAMJET_HOST,SCRAMJET_PORT,NESTAIL_AUTH_SECRET src/cli.ts token"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "dom", "dom.iterable"],
+    "strict": true
+  },
+  "imports": {
+    "@std/cli": "jsr:@std/cli@^1.0.30",
+    "@std/encoding": "jsr:@std/encoding@^1.0.10",
+    "@std/http": "jsr:@std/http@^1.1.1",
+    "@zod/zod": "jsr:@zod/zod@^4.4.3"
+  }
+}
