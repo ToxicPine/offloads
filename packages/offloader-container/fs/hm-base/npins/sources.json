@@ -40,10 +40,10 @@
       "version_upper_bound": null,
       "release_prefix": null,
       "submodules": false,
-      "version": "v2026.5.29.2",
-      "revision": "51f432685e4bc73379abe70367f196400dd44054",
-      "url": "https://api.github.com/repos/NousResearch/hermes-agent/tarball/v2026.5.29.2",
-      "hash": "sha256-0CmNH879jnsAAszo1nkkFm8RNE49xtwUditYdFIYBCM="
+      "version": "v2026.6.5",
+      "revision": "d6b9cfa3e1f460f5729553ef42b174da28b765c7",
+      "url": "https://api.github.com/repos/NousResearch/hermes-agent/tarball/refs/tags/v2026.6.5",
+      "hash": "sha256-ngpkopVczNrT0bfCXHm38QjgrZT96Bm/rO89NA/ls3Y="
     },
     "home-manager": {
       "type": "Git",
@@ -54,16 +54,16 @@
       },
       "branch": "master",
       "submodules": false,
-      "revision": "4c5c1e8ba14f1c7475fa31ff11bc1c19cd220974",
-      "url": "https://github.com/nix-community/home-manager/archive/4c5c1e8ba14f1c7475fa31ff11bc1c19cd220974.tar.gz",
-      "hash": "sha256-8KX2hEeOX6KP3hBBJJI8dGWVrzbOOf1rBPmg/GUG24U="
+      "revision": "df39142474950e42d5fc3bf2fef9d6c62abbe8d7",
+      "url": "https://github.com/nix-community/home-manager/archive/df39142474950e42d5fc3bf2fef9d6c62abbe8d7.tar.gz",
+      "hash": "sha256-01bTMR9ZPG+uxPaZBeOwagg5uxIaFYs2/3YIrOX+bCA="
     },
     "nixpkgs": {
       "type": "Channel",
       "name": "nixos-unstable",
       "artifact": "nixexprs.tar.xz",
-      "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1008282.331800de5053/nixexprs.tar.xz",
-      "hash": "sha256-2fYATYjjbsF2ri3reTWXgBkrmwK5Hpj23CsTEdLA2fo="
+      "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1011622.a799d3e3886d/nixexprs.tar.xz",
+      "hash": "sha256-G5B1h4sOH4DN/RZ85xYi6zPm2MHdOrNMeUmMslZ28Qs="
     },
     "offloads": {
       "type": "Git",
@@ -73,9 +73,9 @@
       },
       "branch": "master",
       "submodules": false,
-      "revision": "1011678e0c7c85121e50910fea4e75350dd17175",
+      "revision": "204e523b4359de89ee81ab932847604626178846",
       "url": null,
-      "hash": "sha256-Vimem/XiZ3jqkRRXn8O6pHNwR44yByfq+Tjjp4xHEyM="
+      "hash": "sha256-hBAFnQN2FVwKJxTZwzdkWQvRuhh5ahsbj2AlxXZ3OZ8="
     }
   },
   "version": 8
