@@ -16,22 +16,26 @@
         "type": "github"
       }
     },
-    "offloaderTransports": {
+    "offloads": {
       "flake": false,
       "locked": {
-        "path": "../../../../../offloader-transports",
-        "type": "path"
+        "lastModified": 1780948463,
+        "narHash": "sha256-J6/apIa1ob183KmYoRbSVMur1HreZWvc9DjorDUhWqQ=",
+        "owner": "ToxicPine",
+        "repo": "offloads",
+        "rev": "aeb93a4fd4810c54d1e2cdd9a1a1a6602c055c0c",
+        "type": "github"
       },
       "original": {
-        "path": "../../../../../offloader-transports",
-        "type": "path"
-      },
-      "parent": []
+        "owner": "ToxicPine",
+        "repo": "offloads",
+        "type": "github"
+      }
     },
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
-        "offloaderTransports": "offloaderTransports"
+        "offloads": "offloads"
       }
     }
   },
