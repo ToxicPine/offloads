@@ -5,33 +5,25 @@
 You may, for example:
 
 ```text
-/offload audit the payment flow, reproduce the intermittent checkout failure,
-add regression tests, and keep iterating until the full suite passes locally
-```
-
-Or, maybe:
-
-```text
 /offload look through leads.csv, email the 500 best matches about our invoice
 cleanup service between 9am and 5pm, track who replies and what they ask,
 and stop Wednesday with a short review summary and recommended next steps
 ```
 
 The agent sends your current project state to another machine, runs the task
-there, and keeps every change on a new branch from this exact state.
+there, and keeps any changes on a new branch.
+
+The run can continue even if your laptop sleeps or disconnects. It can send
+status updates, expose remote `localhost:<port>` dev servers through
+authenticated public URLs, and use the official Claude Code or Codex remote
+controls to check in or steer it.
 
 That machine can be any computer you can reach, or `/offload` can deploy a
 cloud one for you on [Fly](https://fly.io), much like Cursor Cloud Agents.
 
-The run can continue even if your laptop sleeps or disconnects. It can send
-status updates, expose dev-server links, and use the agent remote controls you
-already have to check in or steer it.
-
-When used with a coding agent such as Claude Code or Cursor, it integrates with
-their native remote-control features so you can watch and intervene through
-their official apps or websites.
-
 ## Install
+
+`/offload` is an agent skill; no persistent local software is needed.
 
 Install from GitHub:
 
