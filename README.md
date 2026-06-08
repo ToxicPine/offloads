@@ -20,6 +20,9 @@ and stop Wednesday with a short review summary and recommended next steps
 The agent sends your current project state to another machine, runs the task
 there, and keeps every change on a new branch from this exact state.
 
+That machine can be any computer you can reach, or `/offload` can deploy a
+cloud one for you, much like Cursor Cloud Agents.
+
 The run can continue even if your laptop sleeps or disconnects. It can send
 status updates, expose dev-server links, and use the agent remote controls you
 already have to check in or steer it.
