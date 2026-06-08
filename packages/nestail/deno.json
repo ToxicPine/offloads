@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "start": "deno run --allow-net=0.0.0.0,127.0.0.1,localhost --allow-env=SCRAMJET_HOST,SCRAMJET_PORT,NESTAIL_AUTH_SECRET,NESTAIL_TRUST_PROXY_HEADERS src/server.ts",
-    "token": "deno run --allow-env=SCRAMJET_HOST,SCRAMJET_PORT,NESTAIL_AUTH_SECRET src/cli.ts token"
+    "start": "deno run --node-modules-dir=auto --allow-net=0.0.0.0,127.0.0.1,localhost --allow-env --allow-read=. src/server.ts",
+    "token": "deno run --allow-env src/cli.ts token"
   },
   "compilerOptions": {
     "lib": ["deno.window", "dom", "dom.iterable"],

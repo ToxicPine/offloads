@@ -72,11 +72,6 @@ const SessionClaimsSchema = z.object({
   exp: z.number().int(),
 });
 
-export function authSecret(): string | null {
-  const value = Deno.env.get("NESTAIL_AUTH_SECRET")?.trim();
-  return value ? value : null;
-}
-
 export async function createAuthorizationGrant(
   secret: string,
   route: string,

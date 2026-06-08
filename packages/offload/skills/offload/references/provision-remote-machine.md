@@ -72,11 +72,11 @@ currently defaults to `lhr`; override it during launch if another region is bett
 
 ## 3. Get the deployable template
 
-Deploy from the opinionated template branch:
+Deploy from the offloader container package on the `master` branch of `ToxicPine/offloads`:
 
 ```bash
-git clone --depth 1 --branch opinionated https://github.com/ToxicPine/hermes-ambit.git <workdir>
-cd <workdir>
+git clone --depth 1 --branch master https://github.com/ToxicPine/offloads.git <workdir>
+cd <workdir>/packages/offloader-container
 ```
 
 The template contains `fly.toml`, points at the ready-made offload image, mounts persistent storage

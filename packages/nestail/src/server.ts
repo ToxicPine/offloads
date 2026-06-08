@@ -1,11 +1,14 @@
 import { baremuxPath } from "npm:@mercuryworkshop/bare-mux@2.1.9/node";
 import { scramjetPath } from "npm:@mercuryworkshop/scramjet@1.1.0/path";
 import { javascript, json, serveStatic } from "./assets.ts";
-import { authSecret } from "./auth.ts";
-import { createAuthMiddleware } from "./middleware.ts";
-import { SCRAMJET_HOST, SCRAMJET_PORT } from "./constants.ts";
+import { EnvValidationError, type NestailEnv, readEnv } from "./env.ts";
 import { renderError } from "./errors.ts";
-import { createPortRouteTargetGetter, resolvePublicRoute } from "./routes.ts";
+import {
+  createPortRouteTargetGetter,
+  resolvePublicRoute,
+  type RouteTargetGetter,
+} from "./routes.ts";
+import { type AuthMiddleware, createAuthMiddleware } from "./middleware.ts";
 import { scramjetServiceWorkerScript, shellResponse } from "./scramjet.ts";
 import {
   handleTransport,
@@ -17,28 +20,39 @@ const SCRAMJET_ASSET_PREFIX = "/__scramjet/";
 const BAREMUX_ASSET_PREFIX = "/__baremux/";
 const TRANSPORT_PREFIX = "/__transport/";
 
-if (
-  !Number.isInteger(SCRAMJET_PORT) || SCRAMJET_PORT < 1 || SCRAMJET_PORT > 65535
-) {
-  console.error("SCRAMJET_PORT must be an integer from 1 to 65535.");
-  Deno.exit(1);
-}
+type ServerContext = {
+  auth: AuthMiddleware;
+  getRouteTarget: RouteTargetGetter;
+};
 
-const getRouteTarget = createPortRouteTargetGetter();
-const auth = createAuthMiddleware(authSecret());
+export function startServer(env: NestailEnv): Deno.HttpServer {
+  const context: ServerContext = {
+    auth: createAuthMiddleware(env),
+    getRouteTarget: createPortRouteTargetGetter(),
+  };
 
-export function startServer(): Deno.HttpServer {
   return Deno.serve(
-    { hostname: SCRAMJET_HOST, port: SCRAMJET_PORT },
-    handleRequest,
+    { hostname: env.scramjetHost, port: env.scramjetPort },
+    (request) => handleRequest(request, context),
   );
 }
 
 if (import.meta.main) {
-  startServer();
+  try {
+    startServer(readEnv());
+  } catch (error) {
+    if (error instanceof EnvValidationError) {
+      console.error(error.message);
+      Deno.exit(1);
+    }
+    throw error;
+  }
 }
 
-async function handleRequest(request: Request): Promise<Response> {
+async function handleRequest(
+  request: Request,
+  context: ServerContext,
+): Promise<Response> {
   const url = new URL(request.url);
 
   if (url.pathname === "/__health") {
@@ -54,7 +68,7 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   if (url.pathname === "/__auth/consume") {
-    return auth.consume(request);
+    return context.auth.consume(request);
   }
 
   if (url.pathname.startsWith(SCRAMJET_ASSET_PREFIX)) {
@@ -66,21 +80,21 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   if (url.pathname.startsWith(TRANSPORT_PREFIX)) {
-    const authResponse = await auth.guardTransport(
+    const authResponse = await context.auth.guardTransport(
       request,
       transportRouteIdFromRequest(request),
     );
     if (authResponse) return authResponse;
 
-    return handleTransport(request, getRouteTarget);
+    return handleTransport(request, context.getRouteTarget);
   }
 
-  const route = await resolvePublicRoute(url, getRouteTarget);
+  const route = await resolvePublicRoute(url, context.getRouteTarget);
   if (!route.ok) {
     return renderError(route.error);
   }
 
-  const authResponse = await auth.guardShell(request, route.value.id);
+  const authResponse = await context.auth.guardShell(request, route.value.id);
   if (authResponse) return authResponse;
 
   return shellResponse(route.value.id, route.value.targetOrigin);

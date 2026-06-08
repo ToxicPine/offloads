@@ -26,13 +26,14 @@ already have to check in or steer it.
 
 ## Install
 
-From this repo:
+Install from GitHub:
 
 ```sh
-./install-offload
+curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/main/install-offload | bash
 ```
 
-Use `--yes` to skip the prompt, or `--silent` for quiet installs.
+Pass options after `bash -s --`, for example `--yes` to skip the prompt or
+`--silent` for quiet installs.
 
 ## Packages
 

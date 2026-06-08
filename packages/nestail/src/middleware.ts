@@ -7,12 +7,15 @@ import {
   redeemAuthorizationGrant,
   type RedeemedSession,
 } from "./auth.ts";
+import type { NestailEnv } from "./env.ts";
 import { parsePublicRouteId } from "./routes.ts";
 
 const AuthConsumeBodySchema = z.object({
   route: z.string(),
   grant: z.string(),
 });
+
+type AuthEnv = Pick<NestailEnv, "authSecret" | "trustProxyHeaders">;
 
 export type AuthMiddleware = {
   consume: (request: Request) => Promise<Response>;
@@ -24,20 +27,21 @@ export type AuthMiddleware = {
 };
 
 export function createAuthMiddleware(
-  secret: string | null,
+  env: AuthEnv,
 ): AuthMiddleware {
   return {
-    consume: (request) => handleAuthConsume(request, secret),
-    guardShell: (request, route) => requireShellAuth(request, secret, route),
+    consume: (request) => handleAuthConsume(request, env),
+    guardShell: (request, route) => requireShellAuth(request, env, route),
     guardTransport: (request, route) =>
-      requireTransportAuth(request, secret, route),
+      requireTransportAuth(request, env, route),
   };
 }
 
 async function handleAuthConsume(
   request: Request,
-  secret: string | null,
+  env: AuthEnv,
 ): Promise<Response> {
+  const secret = env.authSecret;
   if (!secret) return authDisabledResponse();
   if (request.method !== "POST") {
     return authJsonError({
@@ -78,16 +82,17 @@ async function handleAuthConsume(
   const headers = new Headers({
     "content-type": "application/json; charset=utf-8",
   });
-  setAuthCookie(headers, redeemed.value, isSecureRequest(request));
+  setAuthCookie(headers, redeemed.value, isSecureRequest(request, env));
 
   return new Response(JSON.stringify({ ok: true }), { headers });
 }
 
 async function requireShellAuth(
   request: Request,
-  secret: string | null,
+  env: AuthEnv,
   route: string,
 ): Promise<Response | null> {
+  const secret = env.authSecret;
   if (!secret) return null;
   if (await isRequestAuthenticated(request, secret, route)) return null;
   return authBootstrapResponse(route);
@@ -95,9 +100,10 @@ async function requireShellAuth(
 
 async function requireTransportAuth(
   request: Request,
-  secret: string | null,
+  env: AuthEnv,
   rawRoute: string | null,
 ): Promise<Response | null> {
+  const secret = env.authSecret;
   if (!secret || !rawRoute) return null;
 
   const route = parsePublicRouteId(rawRoute);
@@ -133,9 +139,9 @@ function setAuthCookie(
   });
 }
 
-function isSecureRequest(request: Request): boolean {
+function isSecureRequest(request: Request, env: AuthEnv): boolean {
   if (new URL(request.url).protocol === "https:") return true;
-  if (Deno.env.get("NESTAIL_TRUST_PROXY_HEADERS") === "0") return false;
+  if (!env.trustProxyHeaders) return false;
 
   return request.headers.get("x-forwarded-proto") === "https" ||
     request.headers.get("x-forwarded-ssl") === "on";

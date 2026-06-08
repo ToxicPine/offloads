@@ -85,7 +85,8 @@ stdenvNoCC.mkDerivation {
       --add-flags "--config $out/share/nestail/deno.json" \
       --add-flags "--lock $out/share/nestail/deno.lock" \
       --add-flags "--allow-net=0.0.0.0,127.0.0.1,localhost" \
-      --add-flags "--allow-env=SCRAMJET_HOST,SCRAMJET_PORT,NESTAIL_AUTH_SECRET,NESTAIL_TRUST_PROXY_HEADERS" \
+      --add-flags "--allow-env" \
+      --add-flags "--allow-read=$out/share/nestail" \
       --add-flags "$out/share/nestail/src/cli.ts"
 
     runHook postInstall
