@@ -1,0 +1,19 @@
+{
+  "imports": {
+    "zod": "npm:zod@^4.1.12"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "fmt": {
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}

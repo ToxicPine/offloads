@@ -1,0 +1,23 @@
+primary_region = "lhr"
+
+[build]
+  image = "docker.io/cardellier/container-agent:latest-opinionated"
+
+[[mounts]]
+  source = "hermes_data"
+  destination = "/data"
+  initial_size = "16gb"
+
+[http_service]
+  internal_port = 4096
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[env]
+  WEBHOOK_ENABLED = "true"
+  WEBHOOK_PORT = "8644"
+
+[[vm]]
+  size = "shared-cpu-4x"
+  memory = "6gb"

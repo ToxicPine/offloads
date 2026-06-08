@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+set -eu
+
+assume_yes=0
+silent=0
+bold=''
+cyan=''
+dim=''
+gray=''
+green=''
+reset=''
+
+if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != 'dumb' ]]; then
+  bold=$'\033[1m'
+  cyan=$'\033[36m'
+  dim=$'\033[2m'
+  gray=$'\033[37m'
+  green=$'\033[32m'
+  reset=$'\033[0m'
+fi
+
+usage() {
+  printf '%s\n' 'Usage: offload [--yes] [--silent]'
+  printf '%s\n' '  --yes      Skip the confirmation prompt.'
+  printf '%s\n' '  --silent   Suppress normal output and skip the confirmation prompt.'
+}
+
+for arg in "$@"; do
+  case "${arg}" in
+    --yes|-y)
+      assume_yes=1
+      ;;
+    --silent)
+      silent=1
+      assume_yes=1
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown option: %s\n' "${arg}" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+log() {
+  if [[ "${silent}" -eq 0 ]]; then
+    printf '%s\n' "$@"
+  fi
+}
+
+intro() {
+  log "${dim}---${reset}"
+  log "${bold}/offload${reset} lets coding agents continue long-running tasks on another machine."
+  log ''
+  log "${bold}You may, for example:${reset}"
+  log ''
+  log "${cyan}/offload${reset}${gray} audit the payment flow, reproduce the intermittent checkout failure,"
+  log "add regression tests, and keep iterating until the full suite passes locally${reset}"
+  log ''
+  log "${bold}Or, maybe:${reset}"
+  log ''
+  log "${cyan}/offload${reset}${gray} look through leads.csv, email the 500 best matches about our invoice"
+  log "cleanup service between 9am and 5pm, track who replies and what they ask,"
+  log "and stop Wednesday with a short review summary and recommended next steps${reset}"
+  log ''
+  log 'The agent sends your current project state to another machine, runs the task'
+  log 'there, and keeps every change on a new branch from this exact state.'
+  log ''
+  log 'The run will continue until your instructions are fully carried out, even if'
+  log 'your laptop sleeps or disconnects while the remote work keeps going.'
+  log ''
+  log 'It can send status updates via Telegram, have another agent watch the run,'
+  log 'restart or resume work that stops early or drifts away from the requirements,'
+  log 'and use the agent remote controls you already have to check in or steer it.'
+  log ''
+  log 'This script installs the tools needed for /offload to work.'
+  log "${dim}---${reset}"
+}
+
+confirm() {
+  if [[ "${assume_yes}" -eq 1 ]]; then
+    return 0
+  fi
+
+  if [[ ! -r /dev/tty ]]; then
+    printf '%s\n' 'No interactive terminal available. Re-run with --yes or --silent to continue.' >&2
+    exit 1
+  fi
+
+  local response
+
+  printf '\n%s' "${bold}Continue?${reset} [y/N] " > /dev/tty
+
+  IFS= read -r response < /dev/tty
+  case "${response}" in
+    y|Y|yes|YES|Yes)
+      printf '\n' > /dev/tty
+      ;;
+    *)
+      printf '%s\n' 'Canceled.' > /dev/tty
+      exit 0
+      ;;
+  esac
+}
+
+intro
+confirm
+
+if ! command -v npx >/dev/null 2>&1; then
+  printf '%s\n' 'npx is required; install Node.js, then run this script again.' >&2
+  exit 1
+fi
+
+retry() {
+  local label="${1}"
+  shift
+
+  local delay=1
+  local attempt=1
+  local max_attempts=5
+  local log_file
+
+  log_file="$(mktemp -t offload-install.XXXXXX)"
+  log "${label}"
+
+  while :; do
+    if "$@" </dev/null >"${log_file}" 2>&1; then
+      rm -f "${log_file}"
+      return 0
+    fi
+
+    if [[ "${attempt}" -ge "${max_attempts}" ]]; then
+      printf 'Failed after %s attempts: %s\n' "${attempt}" "${label}" >&2
+      printf '%s\n' 'Last command output:' >&2
+      sed 's/^/  /' "${log_file}" >&2
+      rm -f "${log_file}"
+      return 1
+    fi
+
+    if [[ "${silent}" -eq 0 ]]; then
+      printf 'Retrying in %ss: %s\n' "${delay}" "${label}" >&2
+    fi
+    sleep "${delay}"
+    attempt=$((attempt + 1))
+    delay=$((delay * 2))
+  done
+}
+
+enable_codex_prompt_alias() {
+  local codex_home="${CODEX_HOME:-${HOME}/.codex}"
+  local agents_home="${AGENTS_HOME:-${HOME}/.agents}"
+  local prompt_dir="${codex_home}/prompts"
+  local prompt_file="${prompt_dir}/offload.md"
+  local source_file=''
+  local candidate
+
+  for candidate in \
+    "${agents_home}/skills/offload/SKILL.md" \
+    "${codex_home}/skills/offload/SKILL.md" \
+    "${HOME}/.codex/skills/offload/SKILL.md"; do
+    if [[ -f "${candidate}" ]]; then
+      source_file="${candidate}"
+      break
+    fi
+  done
+
+  if [[ -z "${source_file}" ]]; then
+    return 0
+  fi
+
+  if [[ -L "${prompt_file}" ]]; then
+    return 0
+  fi
+
+  if [[ -e "${prompt_file}" ]]; then
+    return 0
+  fi
+
+  mkdir -p "${prompt_dir}" >/dev/null 2>&1 || return 0
+  ln -s "${source_file}" "${prompt_file}" >/dev/null 2>&1 || return 0
+
+  return 0
+}
+
+retry "${green}Installing /offload Plugin...${reset}" npx skills add https://github.com/ToxicPine/offloads -g -a -y -s offload offloader offloader-configurator boondoggler
+enable_codex_prompt_alias
