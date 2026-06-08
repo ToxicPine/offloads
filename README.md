@@ -29,7 +29,7 @@ already have to check in or steer it.
 Install from GitHub:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/main/install-offload | bash
+curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/master/install-offload | bash
 ```
 
 Pass options after `bash -s --`, for example `--yes` to skip the prompt or
