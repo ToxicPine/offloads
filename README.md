@@ -27,6 +27,10 @@ The run can continue even if your laptop sleeps or disconnects. It can send
 status updates, expose dev-server links, and use the agent remote controls you
 already have to check in or steer it.
 
+When used with a coding agent such as Claude Code or Cursor, it integrates with
+their native remote-control features so you can watch and intervene through
+their official apps or websites.
+
 ## Install
 
 Install from GitHub:
@@ -38,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/master/install-o
 Pass options after `bash -s --`, for example `--yes` to skip the prompt or
 `--silent` for quiet installs.
 
-## How It Works (For Nerds)
+## (Technical) How It Works
 
 `/offload` ships with a zero-install, rootless way to run the Nix package
 manager, and the skill helps manage the work of making your project runnable as
@@ -54,6 +58,13 @@ The rest is integration polish, like checking and seeding GitHub credentials,
 git identity, repo state, and coding-agent login state for tools like Codex and
 Claude Code. The goal is simple: run the same project somewhere else and return
 the result as a normal branch.
+
+### Optional: Hermes Agent Integration With Telegram
+
+The machine includes [Hermes](https://hermes-agent.nousresearch.com/) by
+default. You can optionally enable its Telegram integration for progress pings,
+phone supervision, and quick interventions like asking the remote agent for a
+dev-server link. `/offload` still works without it.
 
 ## Packages
 
