@@ -10,15 +10,8 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 
-shell_quote_word() {
-  local word="$1"
-
-  printf "'"
-  while [[ "${word}" == *"'"* ]]; do
-    printf "%s'\\''" "${word%%\'*}"
-    word="${word#*\'}"
-  done
-  printf "%s'" "${word}"
+base64_encode() {
+  printf '%s' "$1" | base64 | tr -d '\n'
 }
 
 sentinel="__OFFLOADER_FLY_EXIT_${RANDOM}_${RANDOM}__"
@@ -38,10 +31,10 @@ echo "${sentinel}\${code}"
 exit 0
 REMOTE
 )
-remote_command_q="$(shell_quote_word "${remote_command}")"
+remote_command_b64="$(base64_encode "${remote_command}")"
 
 set +e
-fly ssh console "$@" --command "bash -c ${remote_command_q}" 2>&1 \
+fly ssh console "$@" --command "bash -c 'command -v base64 >/dev/null 2>&1 || { echo \"offloader-fly: remote missing required command: base64\" >&2; exit 127; }; remote_command=\$(printf %s \"\$1\" | base64 -d) || { echo \"offloader-fly: remote failed to decode bootstrap\" >&2; exit 1; }; bash -c \"\${remote_command}\"' _ ${remote_command_b64}" 2>&1 \
   | while IFS= read -r line; do
       case "${line}" in
         "${sentinel}"*)
