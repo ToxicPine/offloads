@@ -20,7 +20,7 @@ controls to check in or steer it.
 
 ## Demo Video
 
-[![Demo Video](media/offload-demo-thumbnail.jpg)](https://github.com/ToxicPine/offloads/raw/refs/heads/master/media/offload-demo-25s-v2-youtube-1080p30.mp4)
+https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 That machine can be any computer you can reach, or `/offload` can deploy a
 cloud one for you on [Fly](https://fly.io), much like Cursor Cloud Agents.
