@@ -14,7 +14,9 @@ and stop Wednesday with a short review summary and recommended next steps
 ```
 
 The agent sends your current project state to another machine, runs the task
-there, and keeps any changes on a new branch.
+there, and saves any changes on a new branch. You can use any machine you can
+access, or `/offload` can easily dispatch the job to a cloud instance on
+[Fly](https://fly.io), similar to Cursor Cloud Agents.
 
 The run can continue even if your laptop sleeps or disconnects. It can send
 status updates, expose remote `localhost:<port>` dev servers through
@@ -24,9 +26,6 @@ controls to check in or steer it.
 ## Demo Video
 
 https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
-
-That machine can be any computer you can reach, or `/offload` can deploy a
-cloud one for you on [Fly](https://fly.io), much like Cursor Cloud Agents.
 
 ## Install
 
