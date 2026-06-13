@@ -1,5 +1,8 @@
 # /offload
 
+[![License](https://img.shields.io/github/license/ToxicPine/offloads)](LICENSE.md)
+[![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
+
 `/offload` lets coding agents continue long-running tasks on another machine.
 
 You may, for example:
