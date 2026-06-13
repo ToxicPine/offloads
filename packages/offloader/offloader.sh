@@ -203,26 +203,16 @@ repo_path_from_url() {
   printf 'git/%s\n' "${name_segment}"
 }
 
-shell_quote_word() {
-  local word="$1"
-
-  printf "'"
-  while [[ "${word}" == *"'"* ]]; do
-    printf "%s'\\''" "${word%%\'*}"
-    word="${word#*\'}"
-  done
-  printf "%s'" "${word}"
+base64_encode() {
+  printf '%s' "$1" | base64 | tr -d '\n'
 }
 
-shell_quote_command() {
-  local word sep=""
+base64_array_lines() {
+  local word
 
   for word in "$@"; do
-    printf "%s" "${sep}"
-    shell_quote_word "${word}"
-    sep=" "
+    printf "  '%s'\n" "$(base64_encode "${word}")"
   done
-  printf "\n"
 }
 
 default_worktree_name() {
@@ -261,10 +251,17 @@ OFFLOADER_REMOTE_DIR="${OFFLOADER_REMOTE_DIR:-}"
 OFFLOADER_BARE_DIR="${OFFLOADER_BARE_DIR:-}"
 OFFLOADER_WORKTREE_DIR="${OFFLOADER_WORKTREE_DIR:-}"
 
+git check-ref-format "refs/heads/${OFFLOADER_RUN_BRANCH}" \
+  || die "invalid OFFLOADER_RUN_BRANCH: ${OFFLOADER_RUN_BRANCH}"
+git check-ref-format "refs/heads/${OFFLOADER_BASE_BRANCH}" \
+  || die "invalid OFFLOADER_BASE_BRANCH: ${OFFLOADER_BASE_BRANCH}"
+
+COMMAND_STRING=
+COMMAND_ARGV_B64_LINES=
 if [[ "${COMMAND_MODE}" == "shell" ]]; then
   COMMAND_STRING="${RUN_COMMAND[0]}"
 else
-  COMMAND_STRING="$(shell_quote_command "${RUN_COMMAND[@]}")"
+  COMMAND_ARGV_B64_LINES="$(base64_array_lines "${RUN_COMMAND[@]}")"
 fi
 
 LOCAL_BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
@@ -274,29 +271,53 @@ fi
 
 git push "${REPO_URL}" "HEAD:${OFFLOADER_RUN_BRANCH}"
 
-OFFLOADER_BASE_BRANCH_Q="$(shell_quote_word "${OFFLOADER_BASE_BRANCH}")"
-OFFLOADER_BARE_DIR_Q="$(shell_quote_word "${OFFLOADER_BARE_DIR}")"
-OFFLOADER_REMOTE_DIR_Q="$(shell_quote_word "${OFFLOADER_REMOTE_DIR}")"
-OFFLOADER_REMOTE_ROOT_Q="$(shell_quote_word "${OFFLOADER_REMOTE_ROOT}")"
-OFFLOADER_REPO_PATH_Q="$(shell_quote_word "${OFFLOADER_REPO_PATH}")"
-OFFLOADER_RUN_BRANCH_Q="$(shell_quote_word "${OFFLOADER_RUN_BRANCH}")"
-OFFLOADER_WORKTREE_NAME_Q="$(shell_quote_word "${OFFLOADER_WORKTREE_NAME}")"
-OFFLOADER_WORKTREE_DIR_Q="$(shell_quote_word "${OFFLOADER_WORKTREE_DIR}")"
-COMMAND_STRING_Q="$(shell_quote_word "${COMMAND_STRING}")"
-REPO_URL_Q="$(shell_quote_word "${REPO_URL}")"
+OFFLOADER_BASE_BRANCH_B64="$(base64_encode "${OFFLOADER_BASE_BRANCH}")"
+OFFLOADER_BARE_DIR_B64="$(base64_encode "${OFFLOADER_BARE_DIR}")"
+OFFLOADER_REMOTE_DIR_B64="$(base64_encode "${OFFLOADER_REMOTE_DIR}")"
+OFFLOADER_REMOTE_ROOT_B64="$(base64_encode "${OFFLOADER_REMOTE_ROOT}")"
+OFFLOADER_REPO_PATH_B64="$(base64_encode "${OFFLOADER_REPO_PATH}")"
+OFFLOADER_RUN_BRANCH_B64="$(base64_encode "${OFFLOADER_RUN_BRANCH}")"
+OFFLOADER_WORKTREE_NAME_B64="$(base64_encode "${OFFLOADER_WORKTREE_NAME}")"
+OFFLOADER_WORKTREE_DIR_B64="$(base64_encode "${OFFLOADER_WORKTREE_DIR}")"
+COMMAND_STRING_B64="$(base64_encode "${COMMAND_STRING}")"
+REPO_URL_B64="$(base64_encode "${REPO_URL}")"
 
 REMOTE_SCRIPT=$(cat <<SCRIPT
 set -euo pipefail
-REPO_URL=${REPO_URL_Q}
-OFFLOADER_REPO_PATH=${OFFLOADER_REPO_PATH_Q}
-OFFLOADER_REMOTE_ROOT=${OFFLOADER_REMOTE_ROOT_Q}
-OFFLOADER_REMOTE_DIR=${OFFLOADER_REMOTE_DIR_Q}
-OFFLOADER_BARE_DIR=${OFFLOADER_BARE_DIR_Q}
-OFFLOADER_WORKTREE_NAME=${OFFLOADER_WORKTREE_NAME_Q}
-OFFLOADER_WORKTREE_DIR=${OFFLOADER_WORKTREE_DIR_Q}
-OFFLOADER_RUN_BRANCH=${OFFLOADER_RUN_BRANCH_Q}
-OFFLOADER_BASE_BRANCH=${OFFLOADER_BASE_BRANCH_Q}
-COMMAND_STRING=${COMMAND_STRING_Q}
+
+b64_decode_into() {
+  local __name="\$1" encoded="\$2" decoded
+  if ! decoded="\$(printf '%s' "\${encoded}" | base64 -d; printf .)"; then
+    echo "offloader: remote failed to decode base64 payload for \${__name}" >&2
+    exit 1
+  fi
+  decoded="\${decoded%.}"
+  printf -v "\${__name}" '%s' "\${decoded}"
+}
+
+command -v base64 >/dev/null 2>&1 \
+  || { echo "offloader: remote missing required command: base64" >&2; exit 127; }
+
+b64_decode_into REPO_URL '${REPO_URL_B64}'
+b64_decode_into OFFLOADER_REPO_PATH '${OFFLOADER_REPO_PATH_B64}'
+b64_decode_into OFFLOADER_REMOTE_ROOT '${OFFLOADER_REMOTE_ROOT_B64}'
+b64_decode_into OFFLOADER_REMOTE_DIR '${OFFLOADER_REMOTE_DIR_B64}'
+b64_decode_into OFFLOADER_BARE_DIR '${OFFLOADER_BARE_DIR_B64}'
+b64_decode_into OFFLOADER_WORKTREE_NAME '${OFFLOADER_WORKTREE_NAME_B64}'
+b64_decode_into OFFLOADER_WORKTREE_DIR '${OFFLOADER_WORKTREE_DIR_B64}'
+b64_decode_into OFFLOADER_RUN_BRANCH '${OFFLOADER_RUN_BRANCH_B64}'
+b64_decode_into OFFLOADER_BASE_BRANCH '${OFFLOADER_BASE_BRANCH_B64}'
+b64_decode_into COMMAND_STRING '${COMMAND_STRING_B64}'
+COMMAND_MODE=${COMMAND_MODE}
+
+COMMAND_ARGV_B64=(
+${COMMAND_ARGV_B64_LINES}
+)
+COMMAND_ARGV=()
+for encoded_arg in "\${COMMAND_ARGV_B64[@]}"; do
+  b64_decode_into decoded_arg "\${encoded_arg}"
+  COMMAND_ARGV+=("\${decoded_arg}")
+done
 
 : "\${OFFLOADER_REMOTE_ROOT:=\${HOME}/.remote-work}"
 : "\${OFFLOADER_REMOTE_DIR:=\${OFFLOADER_REMOTE_ROOT}/repos/\${OFFLOADER_REPO_PATH}}"
@@ -307,7 +328,7 @@ mkdir -p "\${OFFLOADER_REMOTE_DIR}"
 if [ ! -d "\${OFFLOADER_BARE_DIR}" ]; then
   git clone --bare "\${REPO_URL}" "\${OFFLOADER_BARE_DIR}"
 fi
-git -C "\${OFFLOADER_BARE_DIR}" fetch "\${REPO_URL}" '+refs/heads/*:refs/heads/*'
+git -C "\${OFFLOADER_BARE_DIR}" fetch "\${REPO_URL}" "+refs/heads/\${OFFLOADER_RUN_BRANCH}:refs/heads/\${OFFLOADER_RUN_BRANCH}"
 mkdir -p "\$(dirname "\${OFFLOADER_WORKTREE_DIR}")"
 if [ -d "\${OFFLOADER_WORKTREE_DIR}/.git" ] || [ -f "\${OFFLOADER_WORKTREE_DIR}/.git" ]; then
   git -C "\${OFFLOADER_WORKTREE_DIR}" fetch origin
@@ -318,7 +339,10 @@ else
   git -C "\${OFFLOADER_BARE_DIR}" worktree add "\${OFFLOADER_WORKTREE_DIR}" "\${OFFLOADER_RUN_BRANCH}"
 fi
 cd "\${OFFLOADER_WORKTREE_DIR}"
-exec bash -lc "\${COMMAND_STRING}"
+if [ "\${COMMAND_MODE}" = "shell" ]; then
+  exec bash -lc "\${COMMAND_STRING}"
+fi
+exec "\${COMMAND_ARGV[@]}"
 SCRIPT
 )
 
