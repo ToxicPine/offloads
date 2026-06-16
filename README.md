@@ -5,7 +5,7 @@
 
 https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
-## Intro
+## About
 
 `/offload` lets coding agents continue long-running tasks on another machine.
 
@@ -27,7 +27,7 @@ status updates, expose remote `localhost:<port>` dev servers through
 authenticated public URLs, and use the official Claude Code or Codex remote
 controls to check in or steer it.
 
-## Install
+## Quick Start
 
 `/offload` is an agent skill; no persistent local software is needed.
 
@@ -47,7 +47,7 @@ documentation. I suggest that you install the skill, then ask an LLM about
 its usage, etc. Alternatively, you may read the skill text yourself, starting
 with [this](./packages/offload/skills/offload/SKILL.md).
 
-## (Technical) How It Works
+## How It Works (Technical)
 
 `/offload` ships with a zero-install, rootless way to run the Nix package
 manager, and the skill helps manage the work of making your project runnable as
