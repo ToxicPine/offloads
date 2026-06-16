@@ -93,9 +93,8 @@ confirm() {
 
   local response
 
-  # Prompt on the controlling terminal (works even under curl | bash). A bare
-  # -r test is not enough: /dev/tty can stat as readable yet fail to open when
-  # there is no controlling terminal, so try the write and bail if it fails.
+  # /dev/tty can stat as readable yet fail to open with no controlling terminal,
+  # so attempt the prompt write itself and bail if it fails.
   if ! printf '\n%s' "${bold}Continue?${reset} [y/N] " >/dev/tty 2>/dev/null; then
     printf '%s\n' 'No interactive terminal available. Re-run with --yes or --silent to continue.' >&2
     exit 1
@@ -216,8 +215,8 @@ install_canonical() {
   staging="${canonical}/.${name}.new.$$"
   mkdir -p "${canonical}"
 
-  # Stage the new copy in full, then swap it in by rename, so the existing
-  # install is removed only once the replacement is ready and no stale files survive.
+  # Stage fully, then swap by rename: a failed copy never destroys the existing
+  # install, and the replacement leaves no stale files behind.
   rm -rf -- "${staging}"
   if ! cp -R "${found_skill}" "${staging}"; then
     rm -rf -- "${staging}"
@@ -292,7 +291,6 @@ main() {
   fetch_skills
   install_skills
 
-  # Claude Code is always linked; every other harness only when detected.
   link_into "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills"
   while IFS=$'\t' read -r marker dir; do
     if [[ -e "${marker}" ]]; then
