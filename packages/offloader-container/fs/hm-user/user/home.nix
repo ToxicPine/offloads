@@ -36,9 +36,7 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
-  # Distinct from the Nestail entrypoint port (4096) so OpenCode gets its own
-  # Fly service; must match extraExposedPorts in nix/system.nix.
-  opencodeDefaultPort = 4097;
+  opencodePorts = import ../../opencode-ports.nix;
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
     runtimeInputs = [ pkgs.coreutils ];
@@ -277,12 +275,12 @@ in
   # OpenCode HTTP server (https://opencode.ai/docs/server/), supervised like the
   # Codex/Claude remote controls above. Only boots when OPENCODE_SERVER_PASSWORD
   # is set: opencode reads it to enable basic auth, so this never exposes an
-  # unauthenticated server. CORS allowlists the public Fly hostname; the
-  # external-port origin and any others come from OPENCODE_SERVER_CORS.
+  # unauthenticated server. CORS allowlists the public Fly origin (hostname plus
+  # the external service port); extra origins come from OPENCODE_SERVER_CORS.
   home.activation.startOpencodeServer = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     if [ -z "''${DRY_RUN:-}" ] && [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
       cors=()
-      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME" --cors "http://$HOSTNAME")
+      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME:${toString opencodePorts.external}")
       if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
         IFS=',' read -ra extra <<<"$OPENCODE_SERVER_CORS"
         for origin in "''${extra[@]}"; do
@@ -295,7 +293,7 @@ in
         -- \
         ${opencode-container}/bin/opencode serve \
         --hostname 0.0.0.0 \
-        --port "''${OPENCODE_SERVER_PORT:-${toString opencodeDefaultPort}}" \
+        --port "''${OPENCODE_SERVER_PORT:-${toString opencodePorts.internal}}" \
         "''${cors[@]}"
       then
         echo "Warning: failed to launch OpenCode server supervisor" >&2

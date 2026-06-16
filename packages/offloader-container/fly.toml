@@ -15,8 +15,8 @@ primary_region = "lhr"
   min_machines_running = 1
 
 # OpenCode HTTP server, exposed at https://<app>.fly.dev:8443. Enable it by
-# setting the OPENCODE_SERVER_PASSWORD secret, and set OPENCODE_SERVER_CORS to
-# https://<app>.fly.dev:8443 so browser clients pass CORS.
+# setting the OPENCODE_SERVER_PASSWORD secret. Ports must match
+# fs/opencode-ports.nix (internal = 4097, external = 8443).
 [[services]]
   internal_port = 4097
   protocol = "tcp"

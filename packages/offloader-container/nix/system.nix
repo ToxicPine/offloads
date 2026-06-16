@@ -7,6 +7,7 @@ let
   procps-container = pkgs.procps.override {
     withSystemd = false;
   };
+  opencodePorts = import ../fs/opencode-ports.nix;
 in
 {
   imageName = "container-agent";
@@ -22,9 +23,7 @@ in
     port = 4096;
   };
 
-  # OpenCode server port (see opencodeDefaultPort in fs/hm-user/user/home.nix),
-  # exposed for its own Fly service.
-  extraExposedPorts = [ 4097 ];
+  extraExposedPorts = [ opencodePorts.internal ];
 
   spawnables = [
     {
