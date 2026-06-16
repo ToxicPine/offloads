@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import { codexAuthJsonSchema, type MutationPayload, mutationSchema } from "./mutation-schema.ts";
+import { type MutationPayload, mutationSchema, opencodeAuthJsonSchema } from "./mutation-schema.ts";
 
 const configureFlagSchema = z.object({
   authJsonFile: z.string().min(1).optional(),
@@ -12,18 +12,21 @@ export const configureInputSchema = configureFlagSchema.extend({
 });
 
 export type ConfigureInput = z.infer<typeof configureInputSchema>;
-export type CodexInput = ConfigureInput;
+export type OpencodeInput = ConfigureInput;
 
 const checkArgvSchema = z
   .array(z.string())
-  .length(0, "codex check does not accept arguments");
+  .length(0, "opencode check does not accept arguments");
 
-export function parseCodexCheckArgs(argv: string[]): undefined {
+export function parseOpencodeCheckArgs(argv: string[]): undefined {
   checkArgvSchema.parse(argv);
   return undefined;
 }
 
-export function parseCodexInput(command: string, argv: string[]): CodexInput {
+export function parseOpencodeInput(
+  command: string,
+  argv: string[],
+): OpencodeInput {
   switch (command) {
     case "configure":
       return configureInputSchema.parse({
@@ -31,12 +34,14 @@ export function parseCodexInput(command: string, argv: string[]): CodexInput {
         ...parseConfigureFlags(argv),
       });
     default:
-      throw new Error(`unknown codex command: ${command}`);
+      throw new Error(`unknown opencode command: ${command}`);
   }
 }
 
-export function parseCodexMutationPayload(input: CodexInput): MutationPayload {
-  return mutationSchema.parse(codexInputToMutationShape(input));
+export function parseOpencodeMutationPayload(
+  input: OpencodeInput,
+): MutationPayload {
+  return mutationSchema.parse(opencodeInputToMutationShape(input));
 }
 
 function parseConfigureFlags(argv: string[]): ConfigureFlags {
@@ -54,24 +59,24 @@ function parseConfigureFlags(argv: string[]): ConfigureFlags {
   });
 }
 
-export function codexInputToMutationShape(input: CodexInput): unknown {
+export function opencodeInputToMutationShape(input: OpencodeInput): unknown {
   switch (input.type) {
     case "configure":
       if (!input.authJsonFile) {
         throw new Error(
-          "codex configure requires --auth-json-file for noninteractive configuration",
+          "opencode configure requires --auth-json-file for noninteractive configuration",
         );
       }
 
       return {
         type: "configure",
-        authJson: readCodexAuthJsonFile(input.authJsonFile),
+        authJson: readOpencodeAuthJsonFile(input.authJsonFile),
       };
   }
 }
 
-export function readCodexAuthJsonFile(
+export function readOpencodeAuthJsonFile(
   path: string,
-): z.infer<typeof codexAuthJsonSchema> {
-  return codexAuthJsonSchema.parse(JSON.parse(Deno.readTextFileSync(path)));
+): z.infer<typeof opencodeAuthJsonSchema> {
+  return opencodeAuthJsonSchema.parse(JSON.parse(Deno.readTextFileSync(path)));
 }

@@ -5,17 +5,17 @@ import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
   | {
-      type: "missing-input";
-      detail: unknown;
-    }
+    type: "missing-input";
+    detail: unknown;
+  }
   | {
-      type: "invalid-mutation";
-      detail: unknown;
-    }
+    type: "invalid-mutation";
+    detail: unknown;
+  }
   | {
-      type: "local-gh-failed";
-      detail: unknown;
-    };
+    type: "local-gh-failed";
+    detail: unknown;
+  };
 
 export default async function completeGhInput(
   input: GhInput,
@@ -88,8 +88,7 @@ async function readLocalGhToken(): Promise<
 
     return err({
       type: "missing-input",
-      detail:
-        new TextDecoder().decode(output.stderr).trim() ||
+      detail: new TextDecoder().decode(output.stderr).trim() ||
         "local gh token is unavailable",
     });
   } catch (error) {

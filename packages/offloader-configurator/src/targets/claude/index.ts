@@ -2,18 +2,18 @@ import { type CliBoundaryError, invalidCliArgsFrom } from "../../lib/cli-error.t
 import { mutateWrapper, remoteJson, type RemoteJsonError } from "../../lib/remote.ts";
 import { err, ok, type Result } from "../../lib/result.ts";
 import {
-  type GhInput,
-  parseGhCheckArgs,
-  parseGhInput,
-  parseGhMutationPayload,
+  type ClaudeInput,
+  parseClaudeCheckArgs,
+  parseClaudeInput,
+  parseClaudeMutationPayload,
 } from "./arg-schema.ts";
 import { type GuardResult, guardSchema } from "./guard-schema.ts";
 import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
-import { type GhState, ghStateSchema } from "./state-schema.ts";
+import { type ClaudeState, claudeStateSchema } from "./state-schema.ts";
 
 export { mutationSchema };
 export { default as completeInput } from "./mutation.ts";
-export type { GhInput };
+export type { ClaudeInput };
 
 export type CommandContext = {
   transport: string;
@@ -39,22 +39,22 @@ export async function guard(
 
 export async function query(
   ctx: CommandContext,
-): Promise<Result<GhState, CommandError>> {
+): Promise<Result<ClaudeState, CommandError>> {
   return await remoteJson(
     ctx.transport,
     await script("QUERY.sh"),
-    ghStateSchema,
+    claudeStateSchema,
   );
 }
 
 export async function mutate(
   ctx: CommandContext,
   payload: MutationPayload,
-): Promise<Result<GhState, CommandError>> {
+): Promise<Result<ClaudeState, CommandError>> {
   return await remoteJson(
     ctx.transport,
     mutateWrapper(await script("MUTATE.sh"), payload),
-    ghStateSchema,
+    claudeStateSchema,
   );
 }
 
@@ -62,7 +62,7 @@ export function parseCheckInput(
   argv: string[],
 ): Result<undefined, CliBoundaryError> {
   try {
-    return ok(parseGhCheckArgs(argv));
+    return ok(parseClaudeCheckArgs(argv));
   } catch (error) {
     return err(invalidCliArgsFrom(error));
   }
@@ -71,19 +71,19 @@ export function parseCheckInput(
 export function parseInput(
   command: string,
   argv: string[],
-): Result<GhInput, CliBoundaryError> {
+): Result<ClaudeInput, CliBoundaryError> {
   try {
-    return ok(parseGhInput(command, argv));
+    return ok(parseClaudeInput(command, argv));
   } catch (error) {
     return err(invalidCliArgsFrom(error));
   }
 }
 
 export function parseCompleteMutationPayload(
-  input: GhInput,
+  input: ClaudeInput,
 ): Result<MutationPayload, CliBoundaryError> {
   try {
-    return ok(parseGhMutationPayload(input));
+    return ok(parseClaudeMutationPayload(input));
   } catch (error) {
     return err(invalidCliArgsFrom(error));
   }

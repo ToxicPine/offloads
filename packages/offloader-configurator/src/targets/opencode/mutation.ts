@@ -1,6 +1,10 @@
 import type { CliIo } from "../../lib/out.ts";
 import { err, ok, type Result } from "../../lib/result.ts";
-import { type CodexInput, codexInputToMutationShape, readCodexAuthJsonFile } from "./arg-schema.ts";
+import {
+  type OpencodeInput,
+  opencodeInputToMutationShape,
+  readOpencodeAuthJsonFile,
+} from "./arg-schema.ts";
 import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
@@ -13,12 +17,12 @@ export type MutationPlanningError =
     detail: unknown;
   }
   | {
-    type: "local-codex-failed";
+    type: "local-opencode-failed";
     detail: unknown;
   };
 
-export default async function completeCodexInput(
-  input: CodexInput,
+export default async function completeOpencodeInput(
+  input: OpencodeInput,
   io: CliIo,
 ): Promise<Result<MutationPayload, MutationPlanningError>> {
   switch (input.type) {
@@ -28,14 +32,14 @@ export default async function completeCodexInput(
 }
 
 async function completeConfigureInput(
-  input: Extract<CodexInput, { type: "configure" }>,
+  input: Extract<OpencodeInput, { type: "configure" }>,
   io: CliIo,
 ): Promise<Result<MutationPayload, MutationPlanningError>> {
   if (input.authJsonFile) {
-    return parseMutation(() => codexInputToMutationShape(input));
+    return parseMutation(() => opencodeInputToMutationShape(input));
   }
 
-  const authJson = await captureLocalCodexAuthJson(io);
+  const authJson = await captureLocalOpencodeAuthJson(io);
   if (!authJson.ok) {
     return authJson;
   }
@@ -69,7 +73,7 @@ function parseMutation(
 
 const encoder = new TextEncoder();
 
-async function captureLocalCodexAuthJson(
+async function captureLocalOpencodeAuthJson(
   io: CliIo,
 ): Promise<Result<MutationPayload["authJson"], MutationPlanningError>> {
   const scratchParent = await ensureScratchParent();
@@ -79,22 +83,23 @@ async function captureLocalCodexAuthJson(
 
   const scratch = await Deno.makeTempDir({
     dir: scratchParent.value,
-    prefix: "codex-",
+    prefix: "opencode-",
   });
-  const codexHome = `${scratch}/codex`;
+  const dataHome = `${scratch}/data`;
   const home = `${scratch}/home`;
+  const authJson = `${dataHome}/opencode/auth.json`;
 
-  await Deno.mkdir(codexHome);
+  await Deno.mkdir(dataHome);
   await Deno.mkdir(home);
 
   try {
     io.stdout.writeSync(
-      encoder.encode("Starting isolated `codex login --device-auth`.\n"),
+      encoder.encode("Starting isolated `opencode auth login`.\n"),
     );
 
-    const login = await runCodex(
-      ["login", "--device-auth"],
-      codexHome,
+    const login = await runOpencode(
+      ["auth", "login"],
+      dataHome,
       home,
       "inherit",
     );
@@ -102,18 +107,8 @@ async function captureLocalCodexAuthJson(
       return login;
     }
 
-    const status = await runCodex(
-      ["login", "status"],
-      codexHome,
-      home,
-      "piped",
-    );
-    if (!status.ok) {
-      return status;
-    }
-
     try {
-      return ok(readCodexAuthJsonFile(`${codexHome}/auth.json`));
+      return ok(readOpencodeAuthJsonFile(authJson));
     } catch (error) {
       return err({
         type: "missing-input",
@@ -131,7 +126,7 @@ async function ensureScratchParent(): Promise<
   const home = Deno.env.get("HOME");
   if (!home) {
     return err({
-      type: "local-codex-failed",
+      type: "local-opencode-failed",
       detail: "HOME is not set",
     });
   }
@@ -142,23 +137,23 @@ async function ensureScratchParent(): Promise<
     return ok(scratchParent);
   } catch (error) {
     return err({
-      type: "local-codex-failed",
+      type: "local-opencode-failed",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
 }
 
-async function runCodex(
+async function runOpencode(
   args: string[],
-  codexHome: string,
+  dataHome: string,
   home: string,
   stdio: "inherit" | "piped",
 ): Promise<Result<undefined, MutationPlanningError>> {
   try {
-    const command = new Deno.Command("codex", {
+    const command = new Deno.Command("opencode", {
       args,
       env: {
-        CODEX_HOME: codexHome,
+        XDG_DATA_HOME: dataHome,
         HOME: home,
       },
       stdin: stdio === "inherit" ? "inherit" : "null",
@@ -175,12 +170,12 @@ async function runCodex(
     }
 
     return err({
-      type: "local-codex-failed",
-      detail: `codex ${args.join(" ")} exited with code ${code}`,
+      type: "local-opencode-failed",
+      detail: `opencode ${args.join(" ")} exited with code ${code}`,
     });
   } catch (error) {
     return err({
-      type: "local-codex-failed",
+      type: "local-opencode-failed",
       detail: error instanceof Error ? error.message : String(error),
     });
   }

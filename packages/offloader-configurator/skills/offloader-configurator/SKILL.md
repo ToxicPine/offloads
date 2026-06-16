@@ -5,9 +5,9 @@ description: Use this to check or configure auth and config state on a remote de
 
 # Offloader Config Workflow
 
-Use `offloader-configurator` when the user wants to check or seed known remote tool config or auth state
-through a Offloader-style transport. It configures interactive tool state on the remote; it is not a
-declarative machine configuration system.
+Use `offloader-configurator` when the user wants to check or seed known remote tool config or auth
+state through a Offloader-style transport. It configures interactive tool state on the remote; it is
+not a declarative machine configuration system.
 
 The transport uses the same contract as Offloader: one local command reads a bash script from stdin,
 runs it on the remote under bash, and forwards stdout, stderr, and exit status. Pass it with
@@ -20,7 +20,7 @@ offloader-configurator gh configure
 ```
 
 Each target owns its own checks, mutation options, and reporting fields. The current targets are
-`gh` and `codex`.
+`gh`, `codex`, `opencode`, and `claude`.
 
 ## GitHub Target
 
@@ -97,6 +97,80 @@ handoff for this target. Never print or paste Codex auth artifact contents in th
 Report only whether configuration succeeded and the resulting `authenticated`, `codexHome`,
 `authJsonPresent`, and `loginStatus` fields.
 
+## OpenCode Target
+
+The `opencode` target checks or configures OpenCode CLI auth on the remote by applying OpenCode's
+own `auth.json` artifact.
+
+Use `opencode check` when the user asks whether remote OpenCode is logged in:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" opencode check
+```
+
+The remote must have `opencode` and `jq` on `PATH`, and its `XDG_DATA_HOME/opencode` or default
+`~/.local/share/opencode` must be writable or creatable.
+
+Use `opencode configure` to seed remote OpenCode auth without logging in on the remote:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" opencode configure
+```
+
+In interactive mode, the local command runs `opencode auth login` under an isolated scratch
+`XDG_DATA_HOME`, reads only the scratch `opencode/auth.json`, removes the scratch home, and sends
+that artifact over the transport. This must not read, overwrite, or log out the user's ordinary host
+`~/.local/share/opencode` credentials.
+
+For noninteractive or scripted use, pass JSON mode and provide the complete auth artifact
+explicitly:
+
+```bash
+offloader-configurator --json --transport "offloader-ssh box" opencode configure --auth-json-file ./auth.json
+```
+
+Never print or paste OpenCode auth artifact contents in the final response. Report only whether
+configuration succeeded and the resulting `authenticated`, `dataDir`, `authJsonPresent`, and
+`providers` fields.
+
+## Claude Target
+
+The `claude` target checks or configures remote Claude Code auth by applying the same
+`.credentials.json` artifact a subscription login writes. This is what authenticates
+`claude remote-control`.
+
+Use `claude check` when the user asks whether remote Claude Code is set up:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" claude check
+```
+
+The remote must have `claude` and `jq` on `PATH`, and its `CLAUDE_CONFIG_DIR` or default `~/.claude`
+must be writable or creatable.
+
+Use `claude configure` to seed remote Claude auth without logging in on the remote:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" claude configure
+```
+
+In interactive mode, the local command runs `claude auth login` under an isolated scratch
+`CLAUDE_CONFIG_DIR`, reads only the scratch `.credentials.json`, removes the scratch home, and sends
+that artifact over the transport. This must not read, overwrite, or log out the user's ordinary host
+`~/.claude` credentials.
+
+For noninteractive or scripted use, pass JSON mode and provide the complete artifact explicitly:
+
+```bash
+offloader-configurator --json --transport "offloader-ssh box" claude configure --credentials-file ./.credentials.json
+```
+
+The `claude check` command and the post-configure state read `claude auth status --json` on the
+remote and surface its native fields: `authenticated` (from `loggedIn`), plus `authMethod` and
+`apiProvider` when Claude reports them. Never print or paste the `.credentials.json` contents in the
+final response. Report only whether configuration succeeded and the resulting `authenticated`,
+`authMethod`, `apiProvider`, and `claudeConfigDir` fields.
+
 ## Useful Options
 
 - `--transport COMMAND STRING` selects the remote transport for one invocation.
@@ -108,6 +182,10 @@ Report only whether configuration succeeded and the resulting `authenticated`, `
 - `gh configure --git-user-email EMAIL` sets remote global `git config user.email`.
 - `codex configure --auth-json-file PATH` supplies a Codex `auth.json` artifact for noninteractive
   configuration.
+- `opencode configure --auth-json-file PATH` supplies an OpenCode `auth.json` artifact for
+  noninteractive configuration.
+- `claude configure --credentials-file PATH` supplies a Claude Code `.credentials.json` artifact for
+  noninteractive configuration.
 
 ## What To Report
 
@@ -131,3 +209,21 @@ After `codex check` or `codex configure`, report:
 - The Codex home path, whether `auth.json` is present, and the login status text when shown.
 
 Never include `auth.json` contents.
+
+After `opencode check` or `opencode configure`, report:
+
+- The target and command, e.g. `opencode configure`.
+- The transport target, e.g. `offloader-ssh box`.
+- Whether OpenCode is authenticated.
+- The OpenCode data dir, whether `auth.json` is present, and the configured providers when shown.
+
+Never include `auth.json` contents.
+
+After `claude check` or `claude configure`, report:
+
+- The target and command, e.g. `claude configure`.
+- The transport target, e.g. `offloader-ssh box`.
+- Whether Claude reports authenticated, and its `authMethod`/`apiProvider` when shown.
+- The Claude config dir.
+
+Never include `.credentials.json` contents.

@@ -1,6 +1,10 @@
 import type { CliIo } from "../../lib/out.ts";
 import { err, ok, type Result } from "../../lib/result.ts";
-import { type CodexInput, codexInputToMutationShape, readCodexAuthJsonFile } from "./arg-schema.ts";
+import {
+  type ClaudeInput,
+  claudeInputToMutationShape,
+  readClaudeCredentialsFile,
+} from "./arg-schema.ts";
 import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
@@ -13,12 +17,12 @@ export type MutationPlanningError =
     detail: unknown;
   }
   | {
-    type: "local-codex-failed";
+    type: "local-claude-failed";
     detail: unknown;
   };
 
-export default async function completeCodexInput(
-  input: CodexInput,
+export default async function completeClaudeInput(
+  input: ClaudeInput,
   io: CliIo,
 ): Promise<Result<MutationPayload, MutationPlanningError>> {
   switch (input.type) {
@@ -28,21 +32,21 @@ export default async function completeCodexInput(
 }
 
 async function completeConfigureInput(
-  input: Extract<CodexInput, { type: "configure" }>,
+  input: Extract<ClaudeInput, { type: "configure" }>,
   io: CliIo,
 ): Promise<Result<MutationPayload, MutationPlanningError>> {
-  if (input.authJsonFile) {
-    return parseMutation(() => codexInputToMutationShape(input));
+  if (input.credentialsFile) {
+    return parseMutation(() => claudeInputToMutationShape(input));
   }
 
-  const authJson = await captureLocalCodexAuthJson(io);
-  if (!authJson.ok) {
-    return authJson;
+  const credentials = await captureLocalClaudeCredentials(io);
+  if (!credentials.ok) {
+    return credentials;
   }
 
   return parseMutation(() => ({
     type: "configure",
-    authJson: authJson.value,
+    credentials: credentials.value,
   }));
 }
 
@@ -69,9 +73,9 @@ function parseMutation(
 
 const encoder = new TextEncoder();
 
-async function captureLocalCodexAuthJson(
+async function captureLocalClaudeCredentials(
   io: CliIo,
-): Promise<Result<MutationPayload["authJson"], MutationPlanningError>> {
+): Promise<Result<MutationPayload["credentials"], MutationPlanningError>> {
   const scratchParent = await ensureScratchParent();
   if (!scratchParent.ok) {
     return scratchParent;
@@ -79,41 +83,27 @@ async function captureLocalCodexAuthJson(
 
   const scratch = await Deno.makeTempDir({
     dir: scratchParent.value,
-    prefix: "codex-",
+    prefix: "claude-",
   });
-  const codexHome = `${scratch}/codex`;
+  const claudeConfigDir = `${scratch}/claude`;
   const home = `${scratch}/home`;
+  const credentialsJson = `${claudeConfigDir}/.credentials.json`;
 
-  await Deno.mkdir(codexHome);
+  await Deno.mkdir(claudeConfigDir);
   await Deno.mkdir(home);
 
   try {
     io.stdout.writeSync(
-      encoder.encode("Starting isolated `codex login --device-auth`.\n"),
+      encoder.encode("Starting isolated `claude auth login`.\n"),
     );
 
-    const login = await runCodex(
-      ["login", "--device-auth"],
-      codexHome,
-      home,
-      "inherit",
-    );
+    const login = await runClaude(["auth", "login"], claudeConfigDir, home);
     if (!login.ok) {
       return login;
     }
 
-    const status = await runCodex(
-      ["login", "status"],
-      codexHome,
-      home,
-      "piped",
-    );
-    if (!status.ok) {
-      return status;
-    }
-
     try {
-      return ok(readCodexAuthJsonFile(`${codexHome}/auth.json`));
+      return ok(readClaudeCredentialsFile(credentialsJson));
     } catch (error) {
       return err({
         type: "missing-input",
@@ -131,7 +121,7 @@ async function ensureScratchParent(): Promise<
   const home = Deno.env.get("HOME");
   if (!home) {
     return err({
-      type: "local-codex-failed",
+      type: "local-claude-failed",
       detail: "HOME is not set",
     });
   }
@@ -142,45 +132,40 @@ async function ensureScratchParent(): Promise<
     return ok(scratchParent);
   } catch (error) {
     return err({
-      type: "local-codex-failed",
+      type: "local-claude-failed",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
 }
 
-async function runCodex(
+async function runClaude(
   args: string[],
-  codexHome: string,
+  claudeConfigDir: string,
   home: string,
-  stdio: "inherit" | "piped",
 ): Promise<Result<undefined, MutationPlanningError>> {
   try {
-    const command = new Deno.Command("codex", {
+    const status = await new Deno.Command("claude", {
       args,
       env: {
-        CODEX_HOME: codexHome,
+        CLAUDE_CONFIG_DIR: claudeConfigDir,
         HOME: home,
       },
-      stdin: stdio === "inherit" ? "inherit" : "null",
-      stdout: stdio,
-      stderr: stdio,
-    });
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    }).spawn().status;
 
-    const code = stdio === "inherit"
-      ? (await command.spawn().status).code
-      : (await command.output()).code;
-
-    if (code === 0) {
+    if (status.code === 0) {
       return ok(undefined);
     }
 
     return err({
-      type: "local-codex-failed",
-      detail: `codex ${args.join(" ")} exited with code ${code}`,
+      type: "local-claude-failed",
+      detail: `claude ${args.join(" ")} exited with code ${status.code}`,
     });
   } catch (error) {
     return err({
-      type: "local-codex-failed",
+      type: "local-claude-failed",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
