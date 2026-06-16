@@ -133,7 +133,6 @@ in
         xclip = does-nothing;
         dependencyGroups = [
           "cli"
-          "pty"
           "mcp"
           "acp"
           "web"

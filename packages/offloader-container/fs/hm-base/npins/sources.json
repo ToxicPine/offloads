@@ -69,7 +69,7 @@
       "type": "Git",
       "repository": {
         "type": "Git",
-        "url": "git+ssh://git@github.com/ToxicPine/offloads.git"
+        "url": "https://github.com/ToxicPine/offloads.git"
       },
       "branch": "master",
       "submodules": false,

@@ -36,7 +36,6 @@ let
 
   defaultDependencyGroups = [
     "cli"
-    "pty"
     "mcp"
     "acp"
     "web"
