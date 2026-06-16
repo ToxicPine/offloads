@@ -168,8 +168,6 @@ git_clone() {
     "https://github.com/${repo}.git" "${workdir}/src"
 }
 
-# Download the skills source tree using whatever fetcher is available,
-# preferring a single tarball request and falling back to a shallow clone.
 fetch_skills() {
   workdir="$(mktemp -d "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
   local tarball="${workdir}/offloads.tar.gz"
@@ -191,8 +189,7 @@ fetch_skills() {
   tar -C "${workdir}" -xzf "${tarball}"
 }
 
-# Locate an extracted skill directory regardless of which fetcher was used.
-# The result is returned in found_skill (empty when the skill is absent).
+# Sets found_skill to the skill's extracted directory, or '' if absent.
 found_skill=''
 find_skill() {
   local name="${1}"
@@ -206,7 +203,6 @@ find_skill() {
   done
 }
 
-# Copy a skill into the canonical ~/.agents/skills store (the source of truth).
 install_canonical() {
   local name="${1}"
   local dest
@@ -221,7 +217,6 @@ install_canonical() {
   cp -R "${found_skill}" "${dest}"
 }
 
-# Point a harness directory at the canonical copy, never clobbering real files.
 link_skill() {
   local name="${1}"
   local dir="${2}"
@@ -241,7 +236,6 @@ link_skill() {
   fi
 }
 
-# Link every requested skill from a harness directory back to the canonical copy.
 link_into() {
   local dir="${1}"
   if [[ "${dir}" == "${canonical}" ]]; then
@@ -254,8 +248,7 @@ link_into() {
   log "  linked into ${dir}"
 }
 
-# Harnesses that keep skills in their own global directory; each detected one
-# is symlinked back to the canonical copy. Format: "<detection marker>\t<dir>".
+# Detected harnesses with a custom global skills dir. Format: <marker>\t<dir>.
 harness_targets="$(printf '%s\t%s\n' \
   "${codex_home}"               "${codex_home}/skills" \
   "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
@@ -292,7 +285,6 @@ enable_codex_prompt_alias() {
   return 0
 }
 
-# Copy every requested skill into the canonical store.
 install_skills() {
   local skill
   for skill in "${skills[@]}"; do
@@ -310,7 +302,7 @@ main() {
   fetch_skills
   install_skills
 
-  # Always cover Claude Code, then add every other harness present on the system.
+  # Claude Code is always linked; every other harness only when detected.
   link_into "${claude_home}/skills"
   while IFS=$'\t' read -r marker dir; do
     if [[ -e "${marker}" ]]; then
