@@ -27,6 +27,19 @@ let
     alsa-lib = alsa-lib-container;
     procps = procps-container;
   };
+  opencode-container = pkgs.symlinkJoin {
+    name = "opencode-container";
+    paths = [ pkgs.opencode ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/opencode \
+        --prefix PATH : ${lib.makeBinPath [ procps-container ]}
+    '';
+  };
+  # Internal port the OpenCode HTTP server binds to. Kept distinct from the
+  # Nestail entrypoint port (4096) so OpenCode can be exposed on its own Fly
+  # service. Overridable at runtime via OPENCODE_SERVER_PORT.
+  opencodeDefaultPort = 4097;
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
     runtimeInputs = [ pkgs.coreutils ];
@@ -257,6 +270,56 @@ in
       ${claude-code-container}/bin/claude remote-control --permission-mode bypassPermissions
     then
       echo "Warning: failed to launch Claude remote control supervisor" >&2
+    fi
+
+    true
+  '';
+
+  # OpenCode HTTP server (https://opencode.ai/docs/server/), supervised exactly
+  # like the Codex/Claude remote controls above. It only boots when
+  # OPENCODE_SERVER_PASSWORD is present in the environment: OpenCode reads that
+  # variable to enable HTTP basic auth (username defaults to "opencode", or set
+  # OPENCODE_SERVER_USERNAME). Refusing to start without it avoids ever exposing
+  # an unauthenticated server. The password is consumed by the `opencode serve`
+  # process straight from the inherited environment, never passed on the CLI.
+  #
+  # CORS: the server sits behind the Fly TLS proxy and is reached from a browser
+  # at the public hostname (HOSTNAME is set to `<app>.fly.dev` during Fly
+  # provisioning), so that origin is allowlisted for cross-origin browser
+  # clients. Extra origins (e.g. a non-standard external port) can be added via
+  # OPENCODE_SERVER_CORS as a comma-separated list.
+  home.activation.startOpencodeServer = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    if [ -z "''${DRY_RUN:-}" ]; then
+      if [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
+        opencode_port="''${OPENCODE_SERVER_PORT:-${toString opencodeDefaultPort}}"
+
+        cors_args=()
+        if [ -n "''${HOSTNAME:-}" ]; then
+          cors_args+=(--cors "https://''${HOSTNAME}" --cors "http://''${HOSTNAME}")
+        fi
+        if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
+          IFS=',' read -ra extra_cors <<<"''${OPENCODE_SERVER_CORS}"
+          for origin in "''${extra_cors[@]}"; do
+            # trim surrounding whitespace
+            origin="''${origin#"''${origin%%[![:space:]]*}"}"
+            origin="''${origin%"''${origin##*[![:space:]]}"}"
+            [ -n "$origin" ] && cors_args+=(--cors "$origin")
+          done
+        fi
+
+        if ! ${remote-control-launcher}/bin/remote-control-launcher \
+          --name opencode \
+          -- \
+          ${opencode-container}/bin/opencode serve \
+          --hostname 0.0.0.0 \
+          --port "$opencode_port" \
+          "''${cors_args[@]}"
+        then
+          echo "Warning: failed to launch OpenCode server supervisor" >&2
+        fi
+      else
+        echo "OPENCODE_SERVER_PASSWORD not set; skipping OpenCode server launch" >&2
+      fi
     fi
 
     true

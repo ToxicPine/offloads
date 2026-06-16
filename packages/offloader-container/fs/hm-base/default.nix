@@ -51,6 +51,15 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
+  opencode-container = pkgs.symlinkJoin {
+    name = "opencode-container";
+    paths = [ pkgs.opencode ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/opencode \
+        --prefix PATH : ${lib.makeBinPath [ procps-container ]}
+    '';
+  };
 in
 
 {
@@ -75,6 +84,7 @@ in
     packages = with pkgs; [
       codex-container
       claude-code-container
+      opencode-container
       nestail
       offloads.boondoggler
       offloads.ghwc
