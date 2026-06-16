@@ -202,16 +202,30 @@ find_skill() {
 
 install_canonical() {
   local name="${1}"
-  local dest
+  local dest staging
   find_skill "${name}"
   if [[ -z "${found_skill}" ]]; then
     printf 'Skill not found in download: %s\n' "${name}" >&2
     return 1
   fi
+
   dest="${canonical}/${name}"
+  staging="${canonical}/.${name}.new.$$"
   mkdir -p "${canonical}"
+
+  # Stage the new copy in full first, so a failure here leaves any existing
+  # install untouched.
+  rm -rf -- "${staging}"
+  if ! cp -R "${found_skill}" "${staging}"; then
+    rm -rf -- "${staging}"
+    printf 'Failed to stage skill: %s\n' "${name}" >&2
+    return 1
+  fi
+
+  # Swap by rename: the old version is removed only now that the new one is
+  # ready, and the two never share the directory, so no stale files survive.
   rm -rf -- "${dest}"
-  cp -R "${found_skill}" "${dest}"
+  mv -- "${staging}" "${dest}"
 }
 
 link_skill() {
