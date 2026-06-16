@@ -182,10 +182,10 @@ fetch_skills() {
 
   if have tar && have curl; then
     retry "${label}" curl -fsSL "${tar_url}" -o "${tarball}"
-    tar -xzf "${tarball}" -C "${workdir}"
+    tar -C "${workdir}" -xzf "${tarball}"
   elif have tar && have wget; then
     retry "${label}" wget -qO "${tarball}" "${tar_url}"
-    tar -xzf "${tarball}" -C "${workdir}"
+    tar -C "${workdir}" -xzf "${tarball}"
   elif have git; then
     retry "${label}" git_clone
   else
