@@ -245,7 +245,6 @@ link_into() {
   for skill in "${skills[@]}"; do
     link_skill "${skill}" "${dir}"
   done
-  log "  linked into ${dir}"
 }
 
 # Detected harnesses with a custom global skills dir. Format: <marker>\t<dir>.
@@ -290,7 +289,6 @@ install_skills() {
   for skill in "${skills[@]}"; do
     install_canonical "${skill}"
   done
-  log "${green}Installed skills to ${canonical}${reset}"
 }
 
 main() {
@@ -311,7 +309,7 @@ main() {
   done <<< "${harness_targets}"
 
   enable_codex_prompt_alias
-  log "${green}Done.${reset}"
+  log "${green}Installed /offload skills.${reset}"
 }
 
 main "$@"
