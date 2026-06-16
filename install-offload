@@ -149,10 +149,8 @@ repo='ToxicPine/offloads'
 ref="${OFFLOAD_REF:-master}"
 skills=(offload offloader offloader-configurator boondoggler)
 
-agents_home="${AGENTS_HOME:-${HOME}/.agents}"
-canonical="${agents_home}/skills"
+canonical="${AGENTS_HOME:-${HOME}/.agents}/skills"
 codex_home="${CODEX_HOME:-${HOME}/.codex}"
-claude_home="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 
 workdir=''
 cleanup() {
@@ -301,7 +299,7 @@ main() {
   install_skills
 
   # Claude Code is always linked; every other harness only when detected.
-  link_into "${claude_home}/skills"
+  link_into "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills"
   while IFS=$'\t' read -r marker dir; do
     if [[ -e "${marker}" ]]; then
       link_into "${dir}"
