@@ -91,22 +91,23 @@ confirm() {
     return 0
   fi
 
-  if [[ ! -r /dev/tty ]]; then
+  local response
+
+  # Prompt on the controlling terminal (works even under curl | bash). A bare
+  # -r test is not enough: /dev/tty can stat as readable yet fail to open when
+  # there is no controlling terminal, so try the write and bail if it fails.
+  if ! printf '\n%s' "${bold}Continue?${reset} [y/N] " >/dev/tty 2>/dev/null; then
     printf '%s\n' 'No interactive terminal available. Re-run with --yes or --silent to continue.' >&2
     exit 1
   fi
 
-  local response
-
-  printf '\n%s' "${bold}Continue?${reset} [y/N] " > /dev/tty
-
-  IFS= read -r response < /dev/tty
+  IFS= read -r response </dev/tty || response=''
   case "${response}" in
     y|Y|yes|YES|Yes)
-      printf '\n' > /dev/tty
+      printf '\n' >/dev/tty
       ;;
     *)
-      printf '%s\n' 'Canceled.' > /dev/tty
+      printf '%s\n' 'Canceled.' >/dev/tty
       exit 0
       ;;
   esac
