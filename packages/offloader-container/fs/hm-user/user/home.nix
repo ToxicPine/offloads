@@ -27,6 +27,7 @@ let
     alsa-lib = alsa-lib-container;
     procps = procps-container;
   };
+  opencode = import ../../opencode.nix { inherit pkgs; };
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
     runtimeInputs = [ pkgs.coreutils ];
@@ -257,6 +258,37 @@ in
       ${claude-code-container}/bin/claude remote-control --permission-mode bypassPermissions
     then
       echo "Warning: failed to launch Claude remote control supervisor" >&2
+    fi
+
+    true
+  '';
+
+  # OpenCode HTTP server (https://opencode.ai/docs/server/), supervised like the
+  # Codex/Claude remote controls above. Only boots when OPENCODE_SERVER_PASSWORD
+  # is set: opencode reads it to enable basic auth, so this never exposes an
+  # unauthenticated server. CORS allowlists the public Fly origin (hostname plus
+  # the external service port); extra origins come from OPENCODE_SERVER_CORS.
+  home.activation.startOpencodeServer = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    if [ -z "''${DRY_RUN:-}" ] && [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
+      cors=()
+      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME:${toString opencode.ports.external}")
+      if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
+        IFS=',' read -ra extra <<<"$OPENCODE_SERVER_CORS"
+        for origin in "''${extra[@]}"; do
+          [ -n "$origin" ] && cors+=(--cors "$origin")
+        done
+      fi
+
+      if ! ${remote-control-launcher}/bin/remote-control-launcher \
+        --name opencode \
+        -- \
+        ${opencode.package}/bin/opencode serve \
+        --hostname 0.0.0.0 \
+        --port "''${OPENCODE_SERVER_PORT:-${toString opencode.ports.internal}}" \
+        "''${cors[@]}"
+      then
+        echo "Warning: failed to launch OpenCode server supervisor" >&2
+      fi
     fi
 
     true

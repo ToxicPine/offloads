@@ -51,6 +51,7 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
+  opencode = import ../opencode.nix { inherit pkgs; };
 in
 
 {
@@ -75,6 +76,7 @@ in
     packages = with pkgs; [
       codex-container
       claude-code-container
+      opencode.package
       nestail
       offloads.boondoggler
       offloads.ghwc
@@ -131,7 +133,6 @@ in
         xclip = does-nothing;
         dependencyGroups = [
           "cli"
-          "pty"
           "mcp"
           "acp"
           "web"

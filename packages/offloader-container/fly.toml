@@ -14,6 +14,17 @@ primary_region = "lhr"
   auto_start_machines = true
   min_machines_running = 1
 
+# OpenCode HTTP server, exposed at https://<app>.fly.dev:8443. Enable it by
+# setting the OPENCODE_SERVER_PASSWORD secret. Ports must match
+# fs/opencode.nix (internal = 4097, external = 8443).
+[[services]]
+  internal_port = 4097
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 8443
+    handlers = ["tls", "http"]
+
 [env]
   WEBHOOK_ENABLED = "true"
   WEBHOOK_PORT = "8644"
