@@ -15,7 +15,6 @@ require_command jq
 
 claude_config_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 credentials_json="${claude_config_dir}/.credentials.json"
-bashrc="${HOME}/.bashrc"
 
 if [[ -e "${claude_config_dir}" && ! -d "${claude_config_dir}" ]]; then
   missing+=("claude-config-creatable")
@@ -33,12 +32,6 @@ fi
 
 if [[ -e "${credentials_json}" && ! -w "${credentials_json}" ]]; then
   missing+=("claude-credentials-writable")
-fi
-
-if [[ -e "${bashrc}" && ! -w "${bashrc}" ]]; then
-  missing+=("claude-bashrc-writable")
-elif [[ ! -e "${bashrc}" && ! -w "${HOME}" ]]; then
-  missing+=("claude-bashrc-creatable")
 fi
 
 if [[ "${#missing[@]}" -eq 0 ]]; then
@@ -61,12 +54,6 @@ for name in "${missing[@]}"; do
       ;;
     claude-credentials-writable)
       detail="Claude credentials artifact is not writable"
-      ;;
-    claude-bashrc-writable)
-      detail="shell profile for the OAuth token is not writable"
-      ;;
-    claude-bashrc-creatable)
-      detail="shell profile for the OAuth token cannot be created"
       ;;
     *)
       detail="unavailable"

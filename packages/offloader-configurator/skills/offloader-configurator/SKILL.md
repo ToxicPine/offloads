@@ -135,10 +135,8 @@ configuration succeeded and the resulting `authenticated`, `dataDir`, `authJsonP
 
 ## Claude Target
 
-The `claude` target checks or configures remote Claude Code auth in one of two modes. Credentials
-mode applies the `.credentials.json` artifact a subscription login writes and is the only mode that
-authenticates `claude remote-control`. Token mode seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN`,
-which is scoped to inference only; prefer credentials mode when the remote runs
+The `claude` target checks or configures remote Claude Code auth by applying the same
+`.credentials.json` artifact a subscription login writes. This is what authenticates
 `claude remote-control`.
 
 Use `claude check` when the user asks whether remote Claude Code is set up:
@@ -147,32 +145,31 @@ Use `claude check` when the user asks whether remote Claude Code is set up:
 offloader-configurator --transport "offloader-ssh box" claude check
 ```
 
-The remote must have `claude` and `jq` on `PATH`, its `CLAUDE_CONFIG_DIR` or default `~/.claude`
-must be writable or creatable, and `~/.bashrc` must be writable or creatable for token mode.
+The remote must have `claude` and `jq` on `PATH`, and its `CLAUDE_CONFIG_DIR` or default `~/.claude`
+must be writable or creatable.
 
-Use `claude configure` for credentials mode and `claude configure --use-token` for token mode. In
-interactive mode the local command captures the artifact under an isolated scratch home
-(`claude auth login` under a fresh `CLAUDE_CONFIG_DIR` for credentials, `claude setup-token` for the
-token) without touching the host's ordinary `~/.claude` credentials:
+Use `claude configure` to seed remote Claude auth without logging in on the remote:
 
 ```bash
 offloader-configurator --transport "offloader-ssh box" claude configure
-offloader-configurator --transport "offloader-ssh box" claude configure --use-token
 ```
 
-For noninteractive or scripted use, pass JSON mode and provide the artifact explicitly with exactly
-one of `--credentials-file` or `--oauth-token`:
+In interactive mode, the local command runs `claude auth login` under an isolated scratch
+`CLAUDE_CONFIG_DIR`, reads only the scratch `.credentials.json`, removes the scratch home, and sends
+that artifact over the transport. This must not read, overwrite, or log out the user's ordinary host
+`~/.claude` credentials.
+
+For noninteractive or scripted use, pass JSON mode and provide the complete artifact explicitly:
 
 ```bash
 offloader-configurator --json --transport "offloader-ssh box" claude configure --credentials-file ./.credentials.json
-offloader-configurator --json --transport "offloader-ssh box" claude configure --oauth-token "$CLAUDE_CODE_OAUTH_TOKEN"
 ```
 
 The `claude check` command and the post-configure state read `claude auth status --json` on the
 remote and surface its native fields: `authenticated` (from `loggedIn`), plus `authMethod` and
-`apiProvider` when Claude reports them. Never print or paste the `.credentials.json` contents or the
-OAuth token in the final response. Report only whether configuration succeeded and the resulting
-`authenticated`, `authMethod`, `apiProvider`, and `claudeConfigDir` fields.
+`apiProvider` when Claude reports them. Never print or paste the `.credentials.json` contents in the
+final response. Report only whether configuration succeeded and the resulting `authenticated`,
+`authMethod`, `apiProvider`, and `claudeConfigDir` fields.
 
 ## Useful Options
 
@@ -188,11 +185,7 @@ OAuth token in the final response. Report only whether configuration succeeded a
 - `opencode configure --auth-json-file PATH` supplies an OpenCode `auth.json` artifact for
   noninteractive configuration.
 - `claude configure --credentials-file PATH` supplies a Claude Code `.credentials.json` artifact for
-  noninteractive credentials-mode configuration.
-- `claude configure --oauth-token TOKEN` supplies a `CLAUDE_CODE_OAUTH_TOKEN` for noninteractive
-  token-mode configuration.
-- `claude configure --use-token` selects token mode for interactive configuration, running
-  `claude setup-token` locally.
+  noninteractive configuration.
 
 ## What To Report
 
@@ -233,4 +226,4 @@ After `claude check` or `claude configure`, report:
 - Whether Claude reports authenticated, and its `authMethod`/`apiProvider` when shown.
 - The Claude config dir.
 
-Never include `.credentials.json` contents or the OAuth token.
+Never include `.credentials.json` contents.

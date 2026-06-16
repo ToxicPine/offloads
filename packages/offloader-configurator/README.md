@@ -25,7 +25,6 @@ offloader-configurator --json --transport "offloader-ssh box" opencode configure
 offloader-configurator --transport "offloader-ssh box" claude check
 offloader-configurator --transport "offloader-ssh box" claude configure
 offloader-configurator --json --transport "offloader-ssh box" claude configure --credentials-file ./.credentials.json
-offloader-configurator --json --transport "offloader-ssh box" claude configure --oauth-token "$CLAUDE_CODE_OAUTH_TOKEN"
 ```
 
 The `codex` target configures remote Codex CLI auth by applying the same `auth.json` artifact Codex
@@ -40,11 +39,11 @@ The `opencode` target follows the same artifact pattern for OpenCode. Interactiv
 `$XDG_DATA_HOME/opencode/auth.json`. It does not read or mutate the host's ordinary
 `~/.local/share/opencode` credentials.
 
-The `claude` target configures remote Claude Code auth in one of two modes. In credentials mode it
-applies the same `.credentials.json` artifact a subscription login writes; interactive configuration
-runs `claude auth login` locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the
-scratch `.credentials.json`, removes the scratch home, and writes that artifact to the remote
-`$CLAUDE_CONFIG_DIR/.credentials.json`. This is the mode that authenticates `claude remote-control`.
-In token mode it seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) into the
-remote shell profile; this token is scoped to inference only and cannot establish Remote Control
-sessions. Neither mode reads or mutates the host's ordinary `~/.claude` credentials.
+The `claude` target follows the same artifact pattern for Claude Code, applying the same
+`.credentials.json` artifact a subscription login writes. Interactive configuration runs
+`claude auth login` locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the scratch
+`.credentials.json`, removes the scratch home, and writes that artifact to the remote
+`$CLAUDE_CONFIG_DIR/.credentials.json`. It does not read or mutate the host's ordinary `~/.claude`
+credentials. `claude check` and the post-configure state report Claude's own
+`claude auth status
+--json` fields (`authenticated`, and `authMethod`/`apiProvider` when present).

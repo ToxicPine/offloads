@@ -35,20 +35,8 @@ async function completeConfigureInput(
   input: Extract<ClaudeInput, { type: "configure" }>,
   io: CliIo,
 ): Promise<Result<MutationPayload, MutationPlanningError>> {
-  if (input.credentialsFile || input.oauthToken) {
+  if (input.credentialsFile) {
     return parseMutation(() => claudeInputToMutationShape(input));
-  }
-
-  if (input.useToken) {
-    const oauthToken = await captureLocalClaudeToken(io);
-    if (!oauthToken.ok) {
-      return oauthToken;
-    }
-
-    return parseMutation(() => ({
-      type: "configure-token",
-      oauthToken: oauthToken.value,
-    }));
   }
 
   const credentials = await captureLocalClaudeCredentials(io);
@@ -57,7 +45,7 @@ async function completeConfigureInput(
   }
 
   return parseMutation(() => ({
-    type: "configure-credentials",
+    type: "configure",
     credentials: credentials.value,
   }));
 }
@@ -87,12 +75,7 @@ const encoder = new TextEncoder();
 
 async function captureLocalClaudeCredentials(
   io: CliIo,
-): Promise<
-  Result<
-    Extract<MutationPayload, { type: "configure-credentials" }>["credentials"],
-    MutationPlanningError
-  >
-> {
+): Promise<Result<MutationPayload["credentials"], MutationPlanningError>> {
   const scratchParent = await ensureScratchParent();
   if (!scratchParent.ok) {
     return scratchParent;
@@ -130,51 +113,6 @@ async function captureLocalClaudeCredentials(
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }
-}
-
-async function captureLocalClaudeToken(
-  io: CliIo,
-): Promise<Result<string, MutationPlanningError>> {
-  io.stdout.writeSync(encoder.encode("Starting `claude setup-token`.\n"));
-
-  try {
-    const output = await new Deno.Command("claude", {
-      args: ["setup-token"],
-      stdin: "inherit",
-      stdout: "piped",
-      stderr: "inherit",
-    }).output();
-
-    if (output.code !== 0) {
-      return err({
-        type: "local-claude-failed",
-        detail: `claude setup-token exited with code ${output.code}`,
-      });
-    }
-
-    const token = lastNonEmptyLine(new TextDecoder().decode(output.stdout));
-    if (!token) {
-      return err({
-        type: "missing-input",
-        detail: "claude setup-token produced no token",
-      });
-    }
-
-    return ok(token);
-  } catch (error) {
-    return err({
-      type: "local-claude-failed",
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-function lastNonEmptyLine(text: string): string {
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  return lines.length === 0 ? "" : lines[lines.length - 1];
 }
 
 async function ensureScratchParent(): Promise<

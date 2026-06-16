@@ -37,7 +37,7 @@ Targets:
   opencode check
   opencode configure [--auth-json-file PATH]
   claude check
-  claude configure [--credentials-file PATH] [--oauth-token TOKEN] [--use-token]
+  claude configure [--credentials-file PATH]
 
 Examples:
   offloader-configurator --transport "offloader-ssh box" gh check
