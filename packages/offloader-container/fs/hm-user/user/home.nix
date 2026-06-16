@@ -36,9 +36,8 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
-  # Internal port the OpenCode HTTP server binds to. Kept distinct from the
-  # Nestail entrypoint port (4096) so OpenCode can be exposed on its own Fly
-  # service. Overridable at runtime via OPENCODE_SERVER_PORT.
+  # Distinct from the Nestail entrypoint port (4096) so OpenCode gets its own
+  # Fly service; must match extraExposedPorts in nix/system.nix.
   opencodeDefaultPort = 4097;
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
@@ -275,50 +274,31 @@ in
     true
   '';
 
-  # OpenCode HTTP server (https://opencode.ai/docs/server/), supervised exactly
-  # like the Codex/Claude remote controls above. It only boots when
-  # OPENCODE_SERVER_PASSWORD is present in the environment: OpenCode reads that
-  # variable to enable HTTP basic auth (username defaults to "opencode", or set
-  # OPENCODE_SERVER_USERNAME). Refusing to start without it avoids ever exposing
-  # an unauthenticated server. The password is consumed by the `opencode serve`
-  # process straight from the inherited environment, never passed on the CLI.
-  #
-  # CORS: the server sits behind the Fly TLS proxy and is reached from a browser
-  # at the public hostname (HOSTNAME is set to `<app>.fly.dev` during Fly
-  # provisioning), so that origin is allowlisted for cross-origin browser
-  # clients. Extra origins (e.g. a non-standard external port) can be added via
-  # OPENCODE_SERVER_CORS as a comma-separated list.
+  # OpenCode HTTP server (https://opencode.ai/docs/server/), supervised like the
+  # Codex/Claude remote controls above. Only boots when OPENCODE_SERVER_PASSWORD
+  # is set: opencode reads it to enable basic auth, so this never exposes an
+  # unauthenticated server. CORS allowlists the public Fly hostname; the
+  # external-port origin and any others come from OPENCODE_SERVER_CORS.
   home.activation.startOpencodeServer = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    if [ -z "''${DRY_RUN:-}" ]; then
-      if [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
-        opencode_port="''${OPENCODE_SERVER_PORT:-${toString opencodeDefaultPort}}"
+    if [ -z "''${DRY_RUN:-}" ] && [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
+      cors=()
+      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME" --cors "http://$HOSTNAME")
+      if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
+        IFS=',' read -ra extra <<<"$OPENCODE_SERVER_CORS"
+        for origin in "''${extra[@]}"; do
+          [ -n "$origin" ] && cors+=(--cors "$origin")
+        done
+      fi
 
-        cors_args=()
-        if [ -n "''${HOSTNAME:-}" ]; then
-          cors_args+=(--cors "https://''${HOSTNAME}" --cors "http://''${HOSTNAME}")
-        fi
-        if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
-          IFS=',' read -ra extra_cors <<<"''${OPENCODE_SERVER_CORS}"
-          for origin in "''${extra_cors[@]}"; do
-            # trim surrounding whitespace
-            origin="''${origin#"''${origin%%[![:space:]]*}"}"
-            origin="''${origin%"''${origin##*[![:space:]]}"}"
-            [ -n "$origin" ] && cors_args+=(--cors "$origin")
-          done
-        fi
-
-        if ! ${remote-control-launcher}/bin/remote-control-launcher \
-          --name opencode \
-          -- \
-          ${opencode-container}/bin/opencode serve \
-          --hostname 0.0.0.0 \
-          --port "$opencode_port" \
-          "''${cors_args[@]}"
-        then
-          echo "Warning: failed to launch OpenCode server supervisor" >&2
-        fi
-      else
-        echo "OPENCODE_SERVER_PASSWORD not set; skipping OpenCode server launch" >&2
+      if ! ${remote-control-launcher}/bin/remote-control-launcher \
+        --name opencode \
+        -- \
+        ${opencode-container}/bin/opencode serve \
+        --hostname 0.0.0.0 \
+        --port "''${OPENCODE_SERVER_PORT:-${toString opencodeDefaultPort}}" \
+        "''${cors[@]}"
+      then
+        echo "Warning: failed to launch OpenCode server supervisor" >&2
       fi
     fi
 

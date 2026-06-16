@@ -41,6 +41,11 @@ let
       packages = mkOption { type = types.listOf types.package; };
       spawnables = mkOption { type = types.listOf spawnableType; };
       entrypoint = mkOption { type = entrypointType; };
+      # Ports to expose beyond the entrypoint's (e.g. spawned servers).
+      extraExposedPorts = mkOption {
+        type = types.listOf types.port;
+        default = [ ];
+      };
     };
   };
 
@@ -273,9 +278,11 @@ pkgs.dockerTools.buildLayeredImageWithNixDb {
       "NIX_PAGER=cat"
       "HOME=/root"
     ];
-    ExposedPorts = {
-      "${toString cfg.system.entrypoint.port}/tcp" = { };
-    };
+    ExposedPorts = lib.listToAttrs (
+      map (p: lib.nameValuePair "${toString p}/tcp" { }) (
+        [ cfg.system.entrypoint.port ] ++ cfg.system.extraExposedPorts
+      )
+    );
     Volumes = {
       "/data" = { };
       "/nix" = { };

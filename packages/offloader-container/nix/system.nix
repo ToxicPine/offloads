@@ -22,6 +22,10 @@ in
     port = 4096;
   };
 
+  # OpenCode server port (see opencodeDefaultPort in fs/hm-user/user/home.nix),
+  # exposed for its own Fly service.
+  extraExposedPorts = [ 4097 ];
+
   spawnables = [
     {
       name = "hermes-gateway";
