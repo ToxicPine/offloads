@@ -167,8 +167,8 @@ offloader-configurator --json --transport "offloader-ssh box" claude configure -
 ```
 
 Never print or paste the `.credentials.json` contents or the OAuth token in the final response.
-Report only whether configuration succeeded and the resulting `authMethod`, `claudeConfigDir`,
-`credentialsPresent`, and `oauthTokenConfigured` fields.
+Report only whether configuration succeeded and the resulting `claudeConfigDir`, `credentialsPresent`,
+and `oauthTokenConfigured` fields.
 
 ## Useful Options
 
@@ -226,7 +226,6 @@ After `claude check` or `claude configure`, report:
 
 - The target and command, e.g. `claude configure`.
 - The transport target, e.g. `offloader-ssh box`.
-- The auth method applied (`credentials` or `token`) when shown.
 - The Claude config dir, whether credentials are present, and whether an OAuth token is configured.
 
 Never include `.credentials.json` contents or the OAuth token.

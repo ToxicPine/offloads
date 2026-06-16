@@ -15,11 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-auth_method=""
-
 case "${mutation_type}" in
   configure-credentials)
-    auth_method="credentials"
     tmp_credentials="${tmp_dir}/.credentials.json"
     printf '%s' "${payload}" | jq -c '.credentials' > "${tmp_credentials}"
     jq -e . "${tmp_credentials}" >/dev/null
@@ -30,7 +27,6 @@ case "${mutation_type}" in
     chmod 600 "${credentials_json}"
     ;;
   configure-token)
-    auth_method="token"
     token="$(printf '%s' "${payload}" | jq -r '.oauthToken')"
     tmp_bashrc="${tmp_dir}/bashrc"
 
@@ -66,7 +62,6 @@ if [[ -f "${bashrc}" ]] && grep -q "CLAUDE_CODE_OAUTH_TOKEN" "${bashrc}"; then
 fi
 
 jq -n \
-  --arg authMethod "${auth_method}" \
   --arg claudeConfigDir "${claude_config_dir}" \
   --argjson credentialsPresent "${credentials_present}" \
   --argjson oauthTokenConfigured "${oauth_token_configured}" \
@@ -74,5 +69,4 @@ jq -n \
     claudeConfigDir: $claudeConfigDir,
     credentialsPresent: $credentialsPresent,
     oauthTokenConfigured: $oauthTokenConfigured
-  }
-  + (if $authMethod == "" then {} else {authMethod: $authMethod} end)'
+  }'
