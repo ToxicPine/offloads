@@ -43,7 +43,7 @@ parse_args() {
         exit 0
         ;;
       *)
-        printf 'Unknown option: %s\n' "${arg}" >&2
+        printf 'Unknown Option: %s\n' "${arg}" >&2
         usage >&2
         exit 2
         ;;
@@ -131,8 +131,8 @@ retry() {
     fi
 
     if [[ "${attempt}" -ge "${max_attempts}" ]]; then
-      printf 'Failed after %s attempts: %s\n' "${attempt}" "${label}" >&2
-      printf '%s\n' 'Last command output:' >&2
+      printf 'Failed After %s Attempts: %s\n' "${attempt}" "${label}" >&2
+      printf '%s\n' 'Last Command Output:' >&2
       sed 's/^/  /' "${log_file}" >&2
       rm -f "${log_file}"
       return 1
@@ -171,7 +171,7 @@ fetch_skills() {
   workdir="$(mktemp -d "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
   local tarball="${workdir}/offloads.tar.gz"
   local tar_url="https://codeload.github.com/${repo}/tar.gz/refs/heads/${ref}"
-  local label="${green}Downloading /offload skills...${reset}"
+  local label="${green}Downloading /offload Skills...${reset}"
 
   if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
     retry "${label}" curl -fsSL "${tar_url}" -o "${tarball}"
@@ -207,7 +207,7 @@ install_canonical() {
   local dest staging
   find_skill "${name}"
   if [[ -z "${found_skill}" ]]; then
-    printf 'Skill not found in download: %s\n' "${name}" >&2
+    printf 'Skill Not Found in Download: %s\n' "${name}" >&2
     return 1
   fi
 
@@ -220,7 +220,7 @@ install_canonical() {
   rm -rf -- "${staging}"
   if ! cp -R "${found_skill}" "${staging}"; then
     rm -rf -- "${staging}"
-    printf 'Failed to stage skill: %s\n' "${name}" >&2
+    printf 'Failed to Stage Skill: %s\n' "${name}" >&2
     return 1
   fi
   rm -rf -- "${dest}"
@@ -236,7 +236,7 @@ link_skill() {
   mkdir -p "${dir}" 2>/dev/null || return 0
 
   if [[ -e "${link}" && ! -L "${link}" ]]; then
-    log "  skipped ${link} (exists and is not a symlink)"
+    log "  Skipped ${link} (exists and is not a symlink)"
     return 0
   fi
 
@@ -299,7 +299,7 @@ main() {
     fi
   done <<< "${harness_targets}"
 
-  log "${green}Installed /offload skills.${reset}"
+  log "${green}Installed /offload Skills.${reset}"
 }
 
 main "$@"
