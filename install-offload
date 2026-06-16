@@ -150,7 +150,6 @@ ref="${OFFLOAD_REF:-master}"
 skills=(offload offloader offloader-configurator boondoggler)
 
 canonical="${AGENTS_HOME:-${HOME}/.agents}/skills"
-codex_home="${CODEX_HOME:-${HOME}/.codex}"
 
 workdir=''
 cleanup() {
@@ -247,7 +246,7 @@ link_into() {
 
 # Detected harnesses with a custom global skills dir. Format: <marker>\t<dir>.
 harness_targets="$(printf '%s\t%s\n' \
-  "${codex_home}"               "${codex_home}/skills" \
+  "${CODEX_HOME:-${HOME}/.codex}" "${CODEX_HOME:-${HOME}/.codex}/skills" \
   "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
   "${HOME}/.gemini"             "${HOME}/.gemini/skills" \
   "${HOME}/.gemini/antigravity" "${HOME}/.gemini/antigravity/skills" \
@@ -262,25 +261,6 @@ harness_targets="$(printf '%s\t%s\n' \
   "${HOME}/.junie"              "${HOME}/.junie/skills" \
   "${HOME}/.qwen"               "${HOME}/.qwen/skills" \
   "${HOME}/.iflow"              "${HOME}/.iflow/skills")"
-
-enable_codex_prompt_alias() {
-  local prompt_dir="${codex_home}/prompts"
-  local prompt_file="${prompt_dir}/offload.md"
-  local source_file="${canonical}/offload/SKILL.md"
-
-  if [[ ! -f "${source_file}" ]]; then
-    return 0
-  fi
-
-  if [[ -L "${prompt_file}" || -e "${prompt_file}" ]]; then
-    return 0
-  fi
-
-  mkdir -p "${prompt_dir}" >/dev/null 2>&1 || return 0
-  ln -s "${source_file}" "${prompt_file}" >/dev/null 2>&1 || return 0
-
-  return 0
-}
 
 install_skills() {
   local skill
@@ -306,7 +286,6 @@ main() {
     fi
   done <<< "${harness_targets}"
 
-  enable_codex_prompt_alias
   log "${green}Installed /offload skills.${reset}"
 }
 
