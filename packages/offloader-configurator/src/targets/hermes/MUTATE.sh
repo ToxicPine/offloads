@@ -37,11 +37,9 @@ active_provider=""
 if [[ -s "${auth_json}" ]] && jq -e 'type == "object"' "${auth_json}" >/dev/null 2>&1; then
   auth_json_present=true
 
-  # Defer the authenticated verdict to Hermes' own `hermes auth status`. The
-  # store is only used to enumerate which providers to ask about: its
-  # active_provider pointer first, then every provider with stored state (OAuth
-  # logins land in .providers, API keys in .credential_pool). The first provider
-  # Hermes reports as logged in wins.
+  # The authenticated verdict comes from Hermes' own `hermes auth status`; the
+  # store is only used to enumerate which providers to ask about (active_provider
+  # first, then .providers for OAuth logins and .credential_pool for API keys).
   if command -v hermes >/dev/null 2>&1; then
     candidates="$(jq -r '
       ([(.active_provider // empty)]

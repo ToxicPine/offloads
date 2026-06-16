@@ -2,10 +2,8 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import { hermesAuthJsonSchema, type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
-// Hermes is multi-provider, so interactive capture needs to know which
-// provider to log in. `nous` is Hermes's first-party provider and its historic
-// login default. The flag only steers the local `hermes auth add` flow; the
-// resulting auth.json artifact is what crosses the transport.
+// Hermes is multi-provider; `nous` is its first-party default. The flag only
+// steers the local `hermes auth add` capture — the auth.json artifact ships.
 const defaultProvider = "nous";
 
 const configureFlagSchema = z.object({
