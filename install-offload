@@ -110,10 +110,9 @@ confirm() {
 intro
 confirm
 
-if ! command -v npx >/dev/null 2>&1; then
-  printf '%s\n' 'npx is required; install Node.js, then run this script again.' >&2
-  exit 1
-fi
+have() {
+  command -v "${1}" >/dev/null 2>&1
+}
 
 retry() {
   local label="${1}"
@@ -150,33 +149,129 @@ retry() {
   done
 }
 
-enable_codex_prompt_alias() {
-  local codex_home="${CODEX_HOME:-${HOME}/.codex}"
-  local agents_home="${AGENTS_HOME:-${HOME}/.agents}"
-  local prompt_dir="${codex_home}/prompts"
-  local prompt_file="${prompt_dir}/offload.md"
-  local source_file=''
-  local candidate
+repo='ToxicPine/offloads'
+ref="${OFFLOAD_REF:-master}"
+skills=(offload offloader offloader-configurator boondoggler)
 
-  for candidate in \
-    "${agents_home}/skills/offload/SKILL.md" \
-    "${codex_home}/skills/offload/SKILL.md" \
-    "${HOME}/.codex/skills/offload/SKILL.md"; do
-    if [[ -f "${candidate}" ]]; then
-      source_file="${candidate}"
-      break
+agents_home="${AGENTS_HOME:-${HOME}/.agents}"
+canonical="${agents_home}/skills"
+codex_home="${CODEX_HOME:-${HOME}/.codex}"
+claude_home="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+
+workdir=''
+cleanup() {
+  if [[ -n "${workdir}" ]]; then
+    rm -rf -- "${workdir}"
+  fi
+}
+trap cleanup EXIT
+
+git_clone() {
+  rm -rf -- "${workdir}/src"
+  git clone --quiet --depth 1 --branch "${ref}" \
+    "https://github.com/${repo}.git" "${workdir}/src"
+}
+
+# Download the skills source tree using whatever fetcher is available,
+# preferring a single tarball request and falling back to a shallow clone.
+fetch_skills() {
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
+  local tarball="${workdir}/offloads.tar.gz"
+  local tar_url="https://codeload.github.com/${repo}/tar.gz/refs/heads/${ref}"
+  local label="${green}Downloading /offload skills...${reset}"
+
+  if have tar && have curl; then
+    retry "${label}" curl -fsSL "${tar_url}" -o "${tarball}"
+    tar -xzf "${tarball}" -C "${workdir}"
+  elif have tar && have wget; then
+    retry "${label}" wget -qO "${tarball}" "${tar_url}"
+    tar -xzf "${tarball}" -C "${workdir}"
+  elif have git; then
+    retry "${label}" git_clone
+  else
+    printf '%s\n' 'Need curl or wget (with tar), or git, to download the skills.' >&2
+    exit 1
+  fi
+}
+
+# Locate an extracted skill directory regardless of which fetcher was used.
+find_skill() {
+  local name="${1}"
+  local dir
+  for dir in "${workdir}"/*/packages/*/skills/"${name}"; do
+    if [[ -d "${dir}" ]]; then
+      printf '%s\n' "${dir}"
+      return 0
     fi
   done
+  return 1
+}
 
-  if [[ -z "${source_file}" ]]; then
+# Copy a skill into the canonical ~/.agents/skills store (the source of truth).
+install_canonical() {
+  local name="${1}"
+  local src dest
+  if ! src="$(find_skill "${name}")"; then
+    printf 'Skill not found in download: %s\n' "${name}" >&2
+    return 1
+  fi
+  dest="${canonical}/${name}"
+  mkdir -p "${canonical}"
+  rm -rf -- "${dest}"
+  cp -R "${src}" "${dest}"
+}
+
+# Point a harness directory at the canonical copy, never clobbering real files.
+link_skill() {
+  local name="${1}"
+  local dir="${2}"
+  local target="${canonical}/${name}"
+  local link="${dir}/${name}"
+
+  mkdir -p "${dir}" 2>/dev/null || return 0
+
+  if [[ -e "${link}" && ! -L "${link}" ]]; then
+    log "  skipped ${link} (exists and is not a symlink)"
     return 0
   fi
 
-  if [[ -L "${prompt_file}" ]]; then
+  if ! ln -sfn "${target}" "${link}" 2>/dev/null; then
+    rm -rf -- "${link}"
+    cp -R "${target}" "${link}"
+  fi
+}
+
+# Harnesses that keep skills in their own global directory; each detected one
+# is symlinked back to the canonical copy. Format: "<detection marker>\t<dir>".
+harness_targets() {
+  printf '%s\t%s\n' \
+    "${codex_home}"               "${codex_home}/skills" \
+    "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
+    "${HOME}/.gemini"             "${HOME}/.gemini/skills" \
+    "${HOME}/.gemini/antigravity" "${HOME}/.gemini/antigravity/skills" \
+    "${HOME}/.copilot"            "${HOME}/.copilot/skills" \
+    "${HOME}/.config/opencode"    "${HOME}/.config/opencode/skills" \
+    "${HOME}/.config/goose"       "${HOME}/.config/goose/skills" \
+    "${HOME}/.config/crush"       "${HOME}/.config/crush/skills" \
+    "${HOME}/.codeium/windsurf"   "${HOME}/.codeium/windsurf/skills" \
+    "${HOME}/.factory"            "${HOME}/.factory/skills" \
+    "${HOME}/.roo"                "${HOME}/.roo/skills" \
+    "${HOME}/.kilocode"           "${HOME}/.kilocode/skills" \
+    "${HOME}/.junie"              "${HOME}/.junie/skills" \
+    "${HOME}/.qwen"               "${HOME}/.qwen/skills" \
+    "${HOME}/.iflow"              "${HOME}/.iflow/skills"
+}
+
+enable_codex_prompt_alias() {
+  local prompt_dir="${codex_home}/prompts"
+  local prompt_file="${prompt_dir}/offload.md"
+  local source_file="${canonical}/offload/SKILL.md"
+
+  if [[ ! -f "${source_file}" ]]; then
     return 0
   fi
 
-  if [[ -e "${prompt_file}" ]]; then
+  if [[ -L "${prompt_file}" || -e "${prompt_file}" ]]; then
     return 0
   fi
 
@@ -186,5 +281,30 @@ enable_codex_prompt_alias() {
   return 0
 }
 
-retry "${green}Installing /offload Plugin...${reset}" npx skills add https://github.com/ToxicPine/offloads -g -a -y -s offload offloader offloader-configurator boondoggler
+fetch_skills
+
+for skill in "${skills[@]}"; do
+  install_canonical "${skill}"
+done
+log "${green}Installed skills to ${canonical}${reset}"
+
+# Always cover Claude Code, then add every other harness present on the system.
+link_dirs=("${claude_home}/skills")
+while IFS=$'\t' read -r marker dir; do
+  if [[ -e "${marker}" ]]; then
+    link_dirs+=("${dir}")
+  fi
+done < <(harness_targets)
+
+for dir in "${link_dirs[@]}"; do
+  if [[ "${dir}" == "${canonical}" ]]; then
+    continue
+  fi
+  for skill in "${skills[@]}"; do
+    link_skill "${skill}" "${dir}"
+  done
+  log "  linked into ${dir}"
+done
+
 enable_codex_prompt_alias
+log "${green}Done.${reset}"
