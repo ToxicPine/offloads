@@ -40,6 +40,13 @@ curl -fsSL https://raw.githubusercontent.com/ToxicPine/offloads/master/install-o
 Pass options after `bash -s --`, for example `--yes` to skip the prompt or
 `--silent` for quiet installs.
 
+## Documentation
+
+This software is distributed with an agent skill, which serves as complete
+documentation. I suggest that you install the skill, then ask an LLM about
+its usage, etc. Alternatively, you may read the skill text yourself, starting
+with [this](./packages/offload/skills/offload/SKILL.md).
+
 ## (Technical) How It Works
 
 `/offload` ships with a zero-install, rootless way to run the Nix package
