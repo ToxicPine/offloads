@@ -19,6 +19,13 @@ offloader-configurator --json --transport "offloader-ssh box" gh configure --tok
 offloader-configurator --transport "offloader-ssh box" codex check
 offloader-configurator --transport "offloader-ssh box" codex configure
 offloader-configurator --json --transport "offloader-ssh box" codex configure --auth-json-file ./auth.json
+offloader-configurator --transport "offloader-ssh box" opencode check
+offloader-configurator --transport "offloader-ssh box" opencode configure
+offloader-configurator --json --transport "offloader-ssh box" opencode configure --auth-json-file ./auth.json
+offloader-configurator --transport "offloader-ssh box" claude check
+offloader-configurator --transport "offloader-ssh box" claude configure
+offloader-configurator --json --transport "offloader-ssh box" claude configure --credentials-file ./.credentials.json
+offloader-configurator --json --transport "offloader-ssh box" claude configure --oauth-token "$CLAUDE_CODE_OAUTH_TOKEN"
 ```
 
 The `codex` target configures remote Codex CLI auth by applying the same `auth.json` artifact Codex
@@ -26,3 +33,18 @@ creates for a ChatGPT/device-code login. Interactive configuration runs `codex l
 locally under an isolated scratch `CODEX_HOME`, reads only the scratch auth artifact, removes the
 scratch home, and applies that artifact remotely. It does not use OpenAI enterprise access-token
 handoff, and it does not read or mutate the host's ordinary `~/.codex` credentials.
+
+The `opencode` target follows the same artifact pattern for OpenCode. Interactive configuration runs
+`opencode auth login` locally under an isolated scratch `XDG_DATA_HOME`, reads only the scratch
+`opencode/auth.json`, removes the scratch home, and writes that artifact to the remote
+`$XDG_DATA_HOME/opencode/auth.json`. It does not read or mutate the host's ordinary
+`~/.local/share/opencode` credentials.
+
+The `claude` target configures remote Claude Code auth in one of two modes. In credentials mode it
+applies the same `.credentials.json` artifact a subscription login writes; interactive configuration
+runs `claude` locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the scratch
+`.credentials.json`, removes the scratch home, and writes that artifact to the remote
+`$CLAUDE_CONFIG_DIR/.credentials.json`. This is the mode that authenticates `claude remote-control`.
+In token mode it seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) into the
+remote shell profile; this token is scoped to inference only and cannot establish Remote Control
+sessions. Neither mode reads or mutates the host's ordinary `~/.claude` credentials.

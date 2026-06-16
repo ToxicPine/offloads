@@ -33,11 +33,17 @@ Targets:
   gh configure [--token TOKEN] [--git-user-name NAME] [--git-user-email EMAIL]
   codex check
   codex configure [--auth-json-file PATH]
+  opencode check
+  opencode configure [--auth-json-file PATH]
+  claude check
+  claude configure [--credentials-file PATH] [--oauth-token TOKEN] [--use-token]
 
 Examples:
   offloader-configurator --transport "offloader-ssh box" gh check
   offloader-configurator --json --transport "offloader-ssh box" gh configure --token "$GITHUB_TOKEN"
   offloader-configurator --transport "offloader-ssh box" codex check
+  offloader-configurator --transport "offloader-ssh box" opencode configure
+  offloader-configurator --transport "offloader-ssh box" claude configure
 `;
 
 export function parseCliArgs(argv: string[]): Result<CliOptions, ParseError> {
