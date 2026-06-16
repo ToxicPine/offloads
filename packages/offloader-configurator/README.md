@@ -25,6 +25,9 @@ offloader-configurator --json --transport "offloader-ssh box" opencode configure
 offloader-configurator --transport "offloader-ssh box" claude check
 offloader-configurator --transport "offloader-ssh box" claude configure
 offloader-configurator --json --transport "offloader-ssh box" claude configure --credentials-file ./.credentials.json
+offloader-configurator --transport "offloader-ssh box" hermes check
+offloader-configurator --transport "offloader-ssh box" hermes configure
+offloader-configurator --json --transport "offloader-ssh box" hermes configure --auth-json-file ./auth.json
 ```
 
 The `codex` target configures remote Codex CLI auth by applying the same `auth.json` artifact Codex
@@ -47,3 +50,12 @@ The `claude` target follows the same artifact pattern for Claude Code, applying 
 credentials. `claude check` and the post-configure state report Claude's own
 `claude auth status
 --json` fields (`authenticated`, and `authMethod`/`apiProvider` when present).
+
+The `hermes` target follows the same artifact pattern for the Hermes Agent, applying the same
+`auth.json` provider store `hermes auth add` writes. Interactive configuration runs
+`hermes auth add <provider> --type oauth` (default provider `nous`) locally under an isolated
+scratch `HERMES_HOME`, reads only the scratch `auth.json`, removes the scratch home, and writes that
+artifact to the remote `$HERMES_HOME/auth.json`. It does not read or mutate the host's ordinary
+`~/.hermes` credentials. `hermes check` and the post-configure state report Hermes's own
+`hermes auth status` verdict (`authenticated`, and the `activeProvider` when a provider is logged
+in).

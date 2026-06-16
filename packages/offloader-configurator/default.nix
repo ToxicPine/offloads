@@ -1,6 +1,12 @@
 { pkgs, ... }:
 
 let
+  # Pinned Hermes CLI, reusing the offloader-container's npins-pinned
+  # hermes-agent package (its `sources` argument defaults to that pin). Only
+  # `pkgs` is threaded in, so this needs no extra callPackage params and no
+  # flake or container edits.
+  hermes = import ../offloader-container/fs/hermes/package.nix { inherit pkgs; };
+
   denoDeps = pkgs.stdenvNoCC.mkDerivation {
     pname = "offloader-configurator-deno-deps";
     version = "0.1.0";
@@ -56,7 +62,7 @@ pkgs.stdenvNoCC.mkDerivation {
     cp -R ${denoDeps}/node_modules "$out/share/offloader-configurator/"
 
     makeWrapper ${pkgs.deno}/bin/deno "$out/bin/offloader-configurator" \
-      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.claude-code pkgs.opencode ]} \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.claude-code pkgs.opencode hermes ]} \
       --add-flags "run" \
       --add-flags "--vendor=true" \
       --add-flags "--node-modules-dir=manual" \

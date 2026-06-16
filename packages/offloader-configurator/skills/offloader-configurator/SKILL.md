@@ -20,7 +20,7 @@ offloader-configurator gh configure
 ```
 
 Each target owns its own checks, mutation options, and reporting fields. The current targets are
-`gh`, `codex`, `opencode`, and `claude`.
+`gh`, `codex`, `opencode`, `claude`, and `hermes`.
 
 ## GitHub Target
 
@@ -171,6 +171,45 @@ remote and surface its native fields: `authenticated` (from `loggedIn`), plus `a
 final response. Report only whether configuration succeeded and the resulting `authenticated`,
 `authMethod`, `apiProvider`, and `claudeConfigDir` fields.
 
+## Hermes Target
+
+The `hermes` target checks or configures Hermes Agent provider auth on the remote by applying
+Hermes's own `auth.json` credential store.
+
+Use `hermes check` when the user asks whether remote Hermes has a logged-in provider:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" hermes check
+```
+
+The remote must have `hermes` and `jq` on `PATH`, and its `HERMES_HOME` or default `~/.hermes` must
+be writable or creatable.
+
+Use `hermes configure` to seed remote Hermes provider auth without logging in on the remote:
+
+```bash
+offloader-configurator --transport "offloader-ssh box" hermes configure
+```
+
+In interactive mode, the local command runs `hermes auth add <provider> --type oauth` (default
+provider `nous`) under an isolated scratch `HERMES_HOME`, reads only the scratch `auth.json`,
+removes the scratch home, and sends that artifact over the transport. This must not read, overwrite,
+or log out the user's ordinary host `~/.hermes` credentials. Pass `--provider` to log in to a
+different Hermes provider (for example `openai-codex` or `qwen-oauth`).
+
+For noninteractive or scripted use, pass JSON mode and provide the complete auth artifact
+explicitly:
+
+```bash
+offloader-configurator --json --transport "offloader-ssh box" hermes configure --auth-json-file ./auth.json
+```
+
+The `hermes check` command and the post-configure state read `hermes auth status` on the remote and
+surface its native verdict: `authenticated`, plus the `activeProvider` Hermes reports logged in.
+Never print or paste the `auth.json` contents in the final response. Report only whether
+configuration succeeded and the resulting `authenticated`, `hermesHome`, `authJsonPresent`, and
+`activeProvider` fields.
+
 ## Useful Options
 
 - `--transport COMMAND STRING` selects the remote transport for one invocation.
@@ -186,6 +225,10 @@ final response. Report only whether configuration succeeded and the resulting `a
   noninteractive configuration.
 - `claude configure --credentials-file PATH` supplies a Claude Code `.credentials.json` artifact for
   noninteractive configuration.
+- `hermes configure --provider ID` selects which Hermes provider to log in during interactive
+  capture (default `nous`).
+- `hermes configure --auth-json-file PATH` supplies a Hermes `auth.json` artifact for noninteractive
+  configuration.
 
 ## What To Report
 
@@ -227,3 +270,12 @@ After `claude check` or `claude configure`, report:
 - The Claude config dir.
 
 Never include `.credentials.json` contents.
+
+After `hermes check` or `hermes configure`, report:
+
+- The target and command, e.g. `hermes configure`.
+- The transport target, e.g. `offloader-ssh box`.
+- Whether Hermes reports an authenticated provider, and the active provider when shown.
+- The Hermes home path and whether `auth.json` is present.
+
+Never include `auth.json` contents.
