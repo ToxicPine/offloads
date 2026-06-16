@@ -57,7 +57,8 @@ const opencodeStateLabels = {
 
 const claudeStateLabels = {
   authenticated: "claude authenticated",
-  credentialSource: "claude credential source",
+  authMethod: "claude auth method",
+  apiProvider: "claude api provider",
   claudeConfigDir: "claude config dir",
 };
 

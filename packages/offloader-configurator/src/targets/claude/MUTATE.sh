@@ -54,27 +54,24 @@ case "${mutation_type}" in
 esac
 
 authenticated=false
-credential_source="none"
-
-if [[ -s "${credentials_json}" ]]; then
-  credential_source="credentials"
-elif [[ -f "${bashrc}" ]] && grep -q "CLAUDE_CODE_OAUTH_TOKEN" "${bashrc}"; then
-  credential_source="token"
-fi
+auth_method=""
+api_provider=""
 
 if status_json="$(claude auth status --json 2>/dev/null)"; then
   logged_in="$(jq -r '.loggedIn // false' <<<"${status_json}")"
   if [[ "${logged_in}" == "true" ]]; then
     authenticated=true
   fi
+  auth_method="$(jq -r '.authMethod // empty' <<<"${status_json}")"
+  api_provider="$(jq -r '.apiProvider // empty' <<<"${status_json}")"
 fi
 
 jq -n \
   --argjson authenticated "${authenticated}" \
-  --arg credentialSource "${credential_source}" \
+  --arg authMethod "${auth_method}" \
+  --arg apiProvider "${api_provider}" \
   --arg claudeConfigDir "${claude_config_dir}" \
-  '{
-    authenticated: $authenticated,
-    credentialSource: $credentialSource,
-    claudeConfigDir: $claudeConfigDir
-  }'
+  '{ authenticated: $authenticated }
+  + (if $authMethod == "" then {} else {authMethod: $authMethod} end)
+  + (if $apiProvider == "" then {} else {apiProvider: $apiProvider} end)
+  + { claudeConfigDir: $claudeConfigDir }'
