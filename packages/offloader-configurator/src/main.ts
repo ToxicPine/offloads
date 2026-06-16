@@ -6,6 +6,7 @@ import { resolveTransportCommand } from "./lib/transport.ts";
 import * as claude from "./targets/claude/index.ts";
 import * as codex from "./targets/codex/index.ts";
 import * as gh from "./targets/gh/index.ts";
+import * as hermes from "./targets/hermes/index.ts";
 import * as opencode from "./targets/opencode/index.ts";
 
 type SuccessEnvelope = {
@@ -60,6 +61,13 @@ const claudeStateLabels = {
   authMethod: "claude auth method",
   apiProvider: "claude api provider",
   claudeConfigDir: "claude config dir",
+};
+
+const hermesStateLabels = {
+  authenticated: "hermes authenticated",
+  hermesHome: "hermes home",
+  authJsonPresent: "hermes auth.json present",
+  activeProvider: "hermes active provider",
 };
 
 async function main(): Promise<void> {
@@ -1019,6 +1027,234 @@ async function main(): Promise<void> {
 
       out.write("Configured claude.\n");
       writeVisibleObject(out, result.value, claudeStateLabels);
+      out.flush();
+      return;
+    }
+    case "hermes": {
+      const ctx: hermes.CommandContext = { transport: transport.value };
+      const command = opts.command;
+
+      if (command === "check") {
+        const parsedCheck = hermes.parseCheckInput(opts.targetArgs);
+        if (!parsedCheck.ok) {
+          fail(
+            out,
+            2,
+            {
+              ok: false,
+              target: "hermes",
+              command,
+              error: parsedCheck.error,
+            },
+            parsedCheck.error.type,
+            parsedCheck.error.detail,
+          );
+        }
+
+        const guardResult = await hermes.guard(ctx);
+        if (!guardResult.ok) {
+          fail(
+            out,
+            1,
+            {
+              ok: false,
+              target: "hermes",
+              command,
+              error: guardResult.error,
+            },
+            guardResult.error.type,
+            guardResult.error.detail,
+          );
+        }
+
+        if (!guardResult.value.ok) {
+          const error = {
+            type: "guard-failed" as const,
+            detail: guardResult.value.error,
+          };
+          fail(
+            out,
+            1,
+            {
+              ok: false,
+              target: "hermes",
+              command,
+              error,
+            },
+            error.type,
+            error.detail,
+          );
+        }
+
+        const state = await hermes.query(ctx);
+        if (!state.ok) {
+          fail(
+            out,
+            1,
+            {
+              ok: false,
+              target: "hermes",
+              command,
+              error: state.error,
+            },
+            state.error.type,
+            state.error.detail,
+          );
+        }
+
+        out.stage({
+          ok: true,
+          target: "hermes",
+          command,
+          state: state.value,
+        });
+
+        writeVisibleObject(out, state.value, hermesStateLabels);
+        out.flush();
+        return;
+      }
+
+      const mutationInput = hermes.parseInput(command, opts.targetArgs);
+      if (!mutationInput.ok) {
+        fail(
+          out,
+          2,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error: mutationInput.error,
+          },
+          mutationInput.error.type,
+          mutationInput.error.detail,
+        );
+      }
+
+      const completePayload = hermes.parseCompleteMutationPayload(
+        mutationInput.value,
+      );
+      if (!completePayload.ok && mode === "json") {
+        fail(
+          out,
+          2,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error: completePayload.error,
+          },
+          completePayload.error.type,
+          completePayload.error.detail,
+        );
+      }
+
+      const guardResult = await hermes.guard(ctx);
+      if (!guardResult.ok) {
+        fail(
+          out,
+          1,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error: guardResult.error,
+          },
+          guardResult.error.type,
+          guardResult.error.detail,
+        );
+      }
+
+      if (!guardResult.value.ok) {
+        const error = {
+          type: "guard-failed" as const,
+          detail: guardResult.value.error,
+        };
+        fail(
+          out,
+          1,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error,
+          },
+          error.type,
+          error.detail,
+        );
+      }
+
+      const candidatePayload = completePayload.ok
+        ? completePayload
+        : await hermes.completeInput(mutationInput.value, io);
+      if (!candidatePayload.ok) {
+        const error = {
+          type: "mutation-planning-failed" as const,
+          detail: candidatePayload.error,
+        };
+        fail(
+          out,
+          1,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error,
+          },
+          error.type,
+          error.detail,
+        );
+      }
+
+      const finalPayload = hermes.mutationSchema.safeParse(
+        candidatePayload.value,
+      );
+      if (!finalPayload.success) {
+        const error = {
+          type: "mutation-planning-failed" as const,
+          detail: {
+            type: "invalid-mutation",
+            detail: finalPayload.error.issues,
+          },
+        };
+        fail(
+          out,
+          1,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error,
+          },
+          error.type,
+          error.detail,
+        );
+      }
+
+      const result = await hermes.mutate(ctx, finalPayload.data);
+      if (!result.ok) {
+        fail(
+          out,
+          1,
+          {
+            ok: false,
+            target: "hermes",
+            command,
+            error: result.error,
+          },
+          result.error.type,
+          result.error.detail,
+        );
+      }
+
+      out.stage({
+        ok: true,
+        target: "hermes",
+        command,
+        state: result.value,
+      });
+
+      out.write("Configured hermes.\n");
+      writeVisibleObject(out, result.value, hermesStateLabels);
       out.flush();
       return;
     }

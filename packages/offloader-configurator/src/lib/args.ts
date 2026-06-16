@@ -38,6 +38,8 @@ Targets:
   opencode configure [--auth-json-file PATH]
   claude check
   claude configure [--credentials-file PATH]
+  hermes check
+  hermes configure [--provider ID] [--auth-json-file PATH]
 
 Examples:
   offloader-configurator --transport "offloader-ssh box" gh check
@@ -45,6 +47,7 @@ Examples:
   offloader-configurator --transport "offloader-ssh box" codex check
   offloader-configurator --transport "offloader-ssh box" opencode configure
   offloader-configurator --transport "offloader-ssh box" claude configure
+  offloader-configurator --transport "offloader-ssh box" hermes configure
 `;
 
 export function parseCliArgs(argv: string[]): Result<CliOptions, ParseError> {

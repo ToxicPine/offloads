@@ -14,9 +14,8 @@ it.
 
 A Telegram bot is a Telegram account controlled by a program. The user creates the bot and receives
 a long password called a **token**. Save that token on the machine, then list the Telegram user IDs
-allowed to talk to it, and configure Hermes through `offloader-configurator` using the
-`hermes setup --portal` account flow. After that, progress pings and agent replies appear as messages
-from the bot.
+allowed to talk to it, and configure the Hermes provider account through `offloader-configurator`.
+After that, progress pings and agent replies appear as messages from the bot.
 
 This does not change the user's normal Telegram account. It only lets that account receive messages
 from and chat with the new bot.
@@ -71,13 +70,12 @@ Progress pings and Telegram chat both need the Hermes account configured with
 if [ -z "${OFFLOADER_TRANSPORT:-}" ] && [ -r "$HOME/.offload-skill-transport" ]; then
   . "$HOME/.offload-skill-transport"
 fi
-<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader-configurator -- --transport "$OFFLOADER_TRANSPORT" hermes account check
-<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader-configurator -- --transport "$OFFLOADER_TRANSPORT" hermes account configure
+<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader-configurator -- --transport "$OFFLOADER_TRANSPORT" hermes check
+<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader-configurator -- --transport "$OFFLOADER_TRANSPORT" hermes configure
 ```
 
-This should follow Hermes' standard `hermes setup --portal` flow, where one OAuth sets up the model
-account and Tool Gateway tools. If the user wants to reuse a Codex subscription, that choice belongs
-inside this Hermes account flow.
+`hermes configure` runs an OAuth login for the model provider (Nous Portal by default; pass
+`--provider` for another, e.g. `openai-codex`) and seeds that account on the machine.
 
 ## 5. Check it works
 
