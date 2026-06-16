@@ -56,6 +56,7 @@ pkgs.stdenvNoCC.mkDerivation {
     cp -R ${denoDeps}/node_modules "$out/share/offloader-configurator/"
 
     makeWrapper ${pkgs.deno}/bin/deno "$out/bin/offloader-configurator" \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.claude-code pkgs.opencode ]} \
       --add-flags "run" \
       --add-flags "--vendor=true" \
       --add-flags "--node-modules-dir=manual" \
