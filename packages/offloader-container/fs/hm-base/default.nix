@@ -51,7 +51,7 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
-  opencode-container = (import ../opencode.nix { inherit pkgs; }).package;
+  opencode = import ../opencode.nix { inherit pkgs; };
 in
 
 {
@@ -76,7 +76,7 @@ in
     packages = with pkgs; [
       codex-container
       claude-code-container
-      opencode-container
+      opencode.package
       nestail
       offloads.boondoggler
       offloads.ghwc
