@@ -111,13 +111,10 @@ async function captureLocalClaudeCredentials(
 
   try {
     io.stdout.writeSync(
-      encoder.encode(
-        "Starting isolated Claude login under a scratch CLAUDE_CONFIG_DIR. " +
-          "Complete the login, then exit Claude (for example with /exit) to continue.\n",
-      ),
+      encoder.encode("Starting isolated `claude auth login`.\n"),
     );
 
-    const login = await runClaude([], claudeConfigDir, home);
+    const login = await runClaude(["auth", "login"], claudeConfigDir, home);
     if (!login.ok) {
       return login;
     }

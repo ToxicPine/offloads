@@ -42,8 +42,8 @@ The `opencode` target follows the same artifact pattern for OpenCode. Interactiv
 
 The `claude` target configures remote Claude Code auth in one of two modes. In credentials mode it
 applies the same `.credentials.json` artifact a subscription login writes; interactive configuration
-runs `claude` locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the scratch
-`.credentials.json`, removes the scratch home, and writes that artifact to the remote
+runs `claude auth login` locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the
+scratch `.credentials.json`, removes the scratch home, and writes that artifact to the remote
 `$CLAUDE_CONFIG_DIR/.credentials.json`. This is the mode that authenticates `claude remote-control`.
 In token mode it seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) into the
 remote shell profile; this token is scoped to inference only and cannot establish Remote Control

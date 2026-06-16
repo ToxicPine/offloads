@@ -151,9 +151,9 @@ The remote must have `claude` and `jq` on `PATH`, its `CLAUDE_CONFIG_DIR` or def
 must be writable or creatable, and `~/.bashrc` must be writable or creatable for token mode.
 
 Use `claude configure` for credentials mode and `claude configure --use-token` for token mode. In
-interactive mode the local command captures the artifact under an isolated scratch home (a fresh
-`CLAUDE_CONFIG_DIR` for credentials, `claude setup-token` for the token) without touching the host's
-ordinary `~/.claude` credentials:
+interactive mode the local command captures the artifact under an isolated scratch home
+(`claude auth login` under a fresh `CLAUDE_CONFIG_DIR` for credentials, `claude setup-token` for the
+token) without touching the host's ordinary `~/.claude` credentials:
 
 ```bash
 offloader-configurator --transport "offloader-ssh box" claude configure
@@ -168,9 +168,10 @@ offloader-configurator --json --transport "offloader-ssh box" claude configure -
 offloader-configurator --json --transport "offloader-ssh box" claude configure --oauth-token "$CLAUDE_CODE_OAUTH_TOKEN"
 ```
 
-Never print or paste the `.credentials.json` contents or the OAuth token in the final response.
-Report only whether configuration succeeded and the resulting `claudeConfigDir`,
-`credentialsPresent`, and `oauthTokenConfigured` fields.
+The `claude check` command and the post-configure state read `claude auth status --json` on the
+remote for the `authenticated` field. Never print or paste the `.credentials.json` contents or the
+OAuth token in the final response. Report only whether configuration succeeded and the resulting
+`authenticated`, `claudeConfigDir`, `credentialsPresent`, and `oauthTokenConfigured` fields.
 
 ## Useful Options
 
@@ -228,6 +229,7 @@ After `claude check` or `claude configure`, report:
 
 - The target and command, e.g. `claude configure`.
 - The transport target, e.g. `offloader-ssh box`.
+- Whether Claude reports authenticated.
 - The Claude config dir, whether credentials are present, and whether an OAuth token is configured.
 
 Never include `.credentials.json` contents or the OAuth token.

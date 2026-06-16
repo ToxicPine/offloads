@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const claudeStateSchema = z.object({
+  authenticated: z.boolean(),
   claudeConfigDir: z.string().min(1),
   credentialsPresent: z.boolean(),
   oauthTokenConfigured: z.boolean(),
