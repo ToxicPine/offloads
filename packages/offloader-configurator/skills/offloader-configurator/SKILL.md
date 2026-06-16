@@ -134,7 +134,10 @@ configuration succeeded and the resulting `authenticated`, `dataDir`, `authJsonP
 
 ## Claude Target
 
-The `claude` target checks or configures remote Claude Code auth in one of two modes.
+The `claude` target checks or configures remote Claude Code auth in one of two modes. Credentials
+mode applies the `.credentials.json` artifact a subscription login writes and is the only mode that
+authenticates `claude remote-control`. Token mode seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN`, which
+is scoped to inference only; prefer credentials mode when the remote runs `claude remote-control`.
 
 Use `claude check` when the user asks whether remote Claude Code is set up:
 
@@ -145,25 +148,17 @@ offloader-configurator --transport "offloader-ssh box" claude check
 The remote must have `claude` and `jq` on `PATH`, its `CLAUDE_CONFIG_DIR` or default `~/.claude` must
 be writable or creatable, and `~/.bashrc` must be writable or creatable for token mode.
 
-Credentials mode applies the same `.credentials.json` artifact a subscription login writes. This is
-the only mode that authenticates `claude remote-control`. Interactive configuration runs `claude`
-locally under an isolated scratch `CLAUDE_CONFIG_DIR`, reads only the scratch `.credentials.json`,
-removes the scratch home, and writes that artifact to the remote `$CLAUDE_CONFIG_DIR/.credentials.json`:
+Use `claude configure` for credentials mode and `claude configure --use-token` for token mode. In
+interactive mode the local command captures the artifact under an isolated scratch home (a fresh
+`CLAUDE_CONFIG_DIR` for credentials, `claude setup-token` for the token) without touching the host's
+ordinary `~/.claude` credentials:
 
 ```bash
 offloader-configurator --transport "offloader-ssh box" claude configure
-```
-
-Token mode seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN` into the remote shell profile. Interactive
-configuration runs `claude setup-token` locally and captures the printed token. This token is scoped
-to inference only and cannot establish Remote Control sessions, so prefer credentials mode when the
-remote runs `claude remote-control`:
-
-```bash
 offloader-configurator --transport "offloader-ssh box" claude configure --use-token
 ```
 
-For noninteractive or scripted use, pass JSON mode and provide the artifact explicitly. Pass exactly
+For noninteractive or scripted use, pass JSON mode and provide the artifact explicitly with exactly
 one of `--credentials-file` or `--oauth-token`:
 
 ```bash
@@ -171,10 +166,9 @@ offloader-configurator --json --transport "offloader-ssh box" claude configure -
 offloader-configurator --json --transport "offloader-ssh box" claude configure --oauth-token "$CLAUDE_CODE_OAUTH_TOKEN"
 ```
 
-Neither mode reads or mutates the host's ordinary `~/.claude` credentials. Never print or paste the
-`.credentials.json` contents or the OAuth token in the final response. Report only whether
-configuration succeeded and the resulting `authMethod`, `claudeConfigDir`, `credentialsPresent`, and
-`oauthTokenConfigured` fields.
+Never print or paste the `.credentials.json` contents or the OAuth token in the final response.
+Report only whether configuration succeeded and the resulting `authMethod`, `claudeConfigDir`,
+`credentialsPresent`, and `oauthTokenConfigured` fields.
 
 ## Useful Options
 
