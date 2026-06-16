@@ -1,10 +1,6 @@
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import {
-  codexAuthJsonSchema,
-  type MutationPayload,
-  mutationSchema,
-} from "./mutation-schema.ts";
+import { codexAuthJsonSchema, type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 const configureFlagSchema = z.object({
   authJsonFile: z.string().min(1).optional(),

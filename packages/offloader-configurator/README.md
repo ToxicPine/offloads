@@ -1,7 +1,7 @@
 # offloader-configurator
 
-`offloader-configurator` configures known remote targets through an offloader transport. The first target is
-`gh`.
+`offloader-configurator` configures known remote targets through an offloader transport. The first
+target is `gh`.
 
 This tool is intentionally an interactive seeding mechanism, not a declarative remote configuration
 system.

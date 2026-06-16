@@ -9,17 +9,17 @@ import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
   | {
-      type: "missing-input";
-      detail: unknown;
-    }
+    type: "missing-input";
+    detail: unknown;
+  }
   | {
-      type: "invalid-mutation";
-      detail: unknown;
-    }
+    type: "invalid-mutation";
+    detail: unknown;
+  }
   | {
-      type: "local-claude-failed";
-      detail: unknown;
-    };
+    type: "local-claude-failed";
+    detail: unknown;
+  };
 
 export default async function completeClaudeInput(
   input: ClaudeInput,

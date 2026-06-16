@@ -1,12 +1,5 @@
-import {
-  type CliBoundaryError,
-  invalidCliArgsFrom,
-} from "../../lib/cli-error.ts";
-import {
-  mutateWrapper,
-  remoteJson,
-  type RemoteJsonError,
-} from "../../lib/remote.ts";
+import { type CliBoundaryError, invalidCliArgsFrom } from "../../lib/cli-error.ts";
+import { mutateWrapper, remoteJson, type RemoteJsonError } from "../../lib/remote.ts";
 import { err, ok, type Result } from "../../lib/result.ts";
 import {
   type CodexInput,

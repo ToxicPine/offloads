@@ -9,17 +9,17 @@ import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
   | {
-      type: "missing-input";
-      detail: unknown;
-    }
+    type: "missing-input";
+    detail: unknown;
+  }
   | {
-      type: "invalid-mutation";
-      detail: unknown;
-    }
+    type: "invalid-mutation";
+    detail: unknown;
+  }
   | {
-      type: "local-opencode-failed";
-      detail: unknown;
-    };
+    type: "local-opencode-failed";
+    detail: unknown;
+  };
 
 export default async function completeOpencodeInput(
   input: OpencodeInput,
@@ -161,10 +161,9 @@ async function runOpencode(
       stderr: stdio,
     });
 
-    const code =
-      stdio === "inherit"
-        ? (await command.spawn().status).code
-        : (await command.output()).code;
+    const code = stdio === "inherit"
+      ? (await command.spawn().status).code
+      : (await command.output()).code;
 
     if (code === 0) {
       return ok(undefined);

@@ -5,9 +5,9 @@ description: Use this to check or configure auth and config state on a remote de
 
 # Offloader Config Workflow
 
-Use `offloader-configurator` when the user wants to check or seed known remote tool config or auth state
-through a Offloader-style transport. It configures interactive tool state on the remote; it is not a
-declarative machine configuration system.
+Use `offloader-configurator` when the user wants to check or seed known remote tool config or auth
+state through a Offloader-style transport. It configures interactive tool state on the remote; it is
+not a declarative machine configuration system.
 
 The transport uses the same contract as Offloader: one local command reads a bash script from stdin,
 runs it on the remote under bash, and forwards stdout, stderr, and exit status. Pass it with
@@ -99,8 +99,8 @@ Report only whether configuration succeeded and the resulting `authenticated`, `
 
 ## OpenCode Target
 
-The `opencode` target checks or configures OpenCode CLI auth on the remote by applying OpenCode's own
-`auth.json` artifact.
+The `opencode` target checks or configures OpenCode CLI auth on the remote by applying OpenCode's
+own `auth.json` artifact.
 
 Use `opencode check` when the user asks whether remote OpenCode is logged in:
 
@@ -122,7 +122,8 @@ In interactive mode, the local command runs `opencode auth login` under an isola
 that artifact over the transport. This must not read, overwrite, or log out the user's ordinary host
 `~/.local/share/opencode` credentials.
 
-For noninteractive or scripted use, pass JSON mode and provide the complete auth artifact explicitly:
+For noninteractive or scripted use, pass JSON mode and provide the complete auth artifact
+explicitly:
 
 ```bash
 offloader-configurator --json --transport "offloader-ssh box" opencode configure --auth-json-file ./auth.json
@@ -136,8 +137,9 @@ configuration succeeded and the resulting `authenticated`, `dataDir`, `authJsonP
 
 The `claude` target checks or configures remote Claude Code auth in one of two modes. Credentials
 mode applies the `.credentials.json` artifact a subscription login writes and is the only mode that
-authenticates `claude remote-control`. Token mode seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN`, which
-is scoped to inference only; prefer credentials mode when the remote runs `claude remote-control`.
+authenticates `claude remote-control`. Token mode seeds a long-lived `CLAUDE_CODE_OAUTH_TOKEN`,
+which is scoped to inference only; prefer credentials mode when the remote runs
+`claude remote-control`.
 
 Use `claude check` when the user asks whether remote Claude Code is set up:
 
@@ -145,8 +147,8 @@ Use `claude check` when the user asks whether remote Claude Code is set up:
 offloader-configurator --transport "offloader-ssh box" claude check
 ```
 
-The remote must have `claude` and `jq` on `PATH`, its `CLAUDE_CONFIG_DIR` or default `~/.claude` must
-be writable or creatable, and `~/.bashrc` must be writable or creatable for token mode.
+The remote must have `claude` and `jq` on `PATH`, its `CLAUDE_CONFIG_DIR` or default `~/.claude`
+must be writable or creatable, and `~/.bashrc` must be writable or creatable for token mode.
 
 Use `claude configure` for credentials mode and `claude configure --use-token` for token mode. In
 interactive mode the local command captures the artifact under an isolated scratch home (a fresh
@@ -167,8 +169,8 @@ offloader-configurator --json --transport "offloader-ssh box" claude configure -
 ```
 
 Never print or paste the `.credentials.json` contents or the OAuth token in the final response.
-Report only whether configuration succeeded and the resulting `claudeConfigDir`, `credentialsPresent`,
-and `oauthTokenConfigured` fields.
+Report only whether configuration succeeded and the resulting `claudeConfigDir`,
+`credentialsPresent`, and `oauthTokenConfigured` fields.
 
 ## Useful Options
 

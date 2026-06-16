@@ -16,7 +16,8 @@ export type ParseError = {
   message?: string;
 };
 
-export const usage = `Usage: offloader-configurator [global-options] TARGET COMMAND [target-command-options]
+export const usage =
+  `Usage: offloader-configurator [global-options] TARGET COMMAND [target-command-options]
 
 Configure a known target on a remote machine through an offloader transport.
 

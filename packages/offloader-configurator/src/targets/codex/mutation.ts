@@ -1,25 +1,21 @@
 import type { CliIo } from "../../lib/out.ts";
 import { err, ok, type Result } from "../../lib/result.ts";
-import {
-  type CodexInput,
-  codexInputToMutationShape,
-  readCodexAuthJsonFile,
-} from "./arg-schema.ts";
+import { type CodexInput, codexInputToMutationShape, readCodexAuthJsonFile } from "./arg-schema.ts";
 import { type MutationPayload, mutationSchema } from "./mutation-schema.ts";
 
 export type MutationPlanningError =
   | {
-      type: "missing-input";
-      detail: unknown;
-    }
+    type: "missing-input";
+    detail: unknown;
+  }
   | {
-      type: "invalid-mutation";
-      detail: unknown;
-    }
+    type: "invalid-mutation";
+    detail: unknown;
+  }
   | {
-      type: "local-codex-failed";
-      detail: unknown;
-    };
+    type: "local-codex-failed";
+    detail: unknown;
+  };
 
 export default async function completeCodexInput(
   input: CodexInput,
@@ -170,10 +166,9 @@ async function runCodex(
       stderr: stdio,
     });
 
-    const code =
-      stdio === "inherit"
-        ? (await command.spawn().status).code
-        : (await command.output()).code;
+    const code = stdio === "inherit"
+      ? (await command.spawn().status).code
+      : (await command.output()).code;
 
     if (code === 0) {
       return ok(undefined);
