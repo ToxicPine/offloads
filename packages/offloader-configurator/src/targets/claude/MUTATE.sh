@@ -63,7 +63,8 @@ if [[ -f "${bashrc}" ]] && grep -q "CLAUDE_CODE_OAUTH_TOKEN" "${bashrc}"; then
 fi
 
 if status_json="$(claude auth status --json 2>/dev/null)"; then
-  if [[ "$(printf '%s' "${status_json}" | jq -r '.loggedIn // false')" == "true" ]]; then
+  logged_in="$(jq -r '.loggedIn // false' <<<"${status_json}")"
+  if [[ "${logged_in}" == "true" ]]; then
     authenticated=true
   fi
 fi
