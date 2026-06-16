@@ -3,6 +3,10 @@
 [![License](https://img.shields.io/github/license/ToxicPine/offloads)](LICENSE.md)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
 
+https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
+
+## Intro
+
 `/offload` lets coding agents continue long-running tasks on another machine.
 
 You may, for example:
@@ -22,10 +26,6 @@ The run can continue even if your laptop sleeps or disconnects. It can send
 status updates, expose remote `localhost:<port>` dev servers through
 authenticated public URLs, and use the official Claude Code or Codex remote
 controls to check in or steer it.
-
-## Demo Video
-
-https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## Install
 
