@@ -110,10 +110,6 @@ confirm() {
 intro
 confirm
 
-have() {
-  command -v "${1}" >/dev/null 2>&1
-}
-
 retry() {
   local label="${1}"
   shift
@@ -180,45 +176,49 @@ fetch_skills() {
   local tar_url="https://codeload.github.com/${repo}/tar.gz/refs/heads/${ref}"
   local label="${green}Downloading /offload skills...${reset}"
 
-  if have tar && have curl; then
+  if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
     retry "${label}" curl -fsSL "${tar_url}" -o "${tarball}"
-    tar -C "${workdir}" -xzf "${tarball}"
-  elif have tar && have wget; then
+  elif command -v wget >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
     retry "${label}" wget -qO "${tarball}" "${tar_url}"
-    tar -C "${workdir}" -xzf "${tarball}"
-  elif have git; then
+  elif command -v git >/dev/null 2>&1; then
     retry "${label}" git_clone
+    return 0
   else
     printf '%s\n' 'Need curl or wget (with tar), or git, to download the skills.' >&2
     exit 1
   fi
+
+  tar -C "${workdir}" -xzf "${tarball}"
 }
 
 # Locate an extracted skill directory regardless of which fetcher was used.
+# The result is returned in found_skill (empty when the skill is absent).
+found_skill=''
 find_skill() {
   local name="${1}"
   local dir
+  found_skill=''
   for dir in "${workdir}"/*/packages/*/skills/"${name}"; do
     if [[ -d "${dir}" ]]; then
-      printf '%s\n' "${dir}"
+      found_skill="${dir}"
       return 0
     fi
   done
-  return 1
 }
 
 # Copy a skill into the canonical ~/.agents/skills store (the source of truth).
 install_canonical() {
   local name="${1}"
-  local src dest
-  if ! src="$(find_skill "${name}")"; then
+  local dest
+  find_skill "${name}"
+  if [[ -z "${found_skill}" ]]; then
     printf 'Skill not found in download: %s\n' "${name}" >&2
     return 1
   fi
   dest="${canonical}/${name}"
   mkdir -p "${canonical}"
   rm -rf -- "${dest}"
-  cp -R "${src}" "${dest}"
+  cp -R "${found_skill}" "${dest}"
 }
 
 # Point a harness directory at the canonical copy, never clobbering real files.
@@ -243,24 +243,22 @@ link_skill() {
 
 # Harnesses that keep skills in their own global directory; each detected one
 # is symlinked back to the canonical copy. Format: "<detection marker>\t<dir>".
-harness_targets() {
-  printf '%s\t%s\n' \
-    "${codex_home}"               "${codex_home}/skills" \
-    "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
-    "${HOME}/.gemini"             "${HOME}/.gemini/skills" \
-    "${HOME}/.gemini/antigravity" "${HOME}/.gemini/antigravity/skills" \
-    "${HOME}/.copilot"            "${HOME}/.copilot/skills" \
-    "${HOME}/.config/opencode"    "${HOME}/.config/opencode/skills" \
-    "${HOME}/.config/goose"       "${HOME}/.config/goose/skills" \
-    "${HOME}/.config/crush"       "${HOME}/.config/crush/skills" \
-    "${HOME}/.codeium/windsurf"   "${HOME}/.codeium/windsurf/skills" \
-    "${HOME}/.factory"            "${HOME}/.factory/skills" \
-    "${HOME}/.roo"                "${HOME}/.roo/skills" \
-    "${HOME}/.kilocode"           "${HOME}/.kilocode/skills" \
-    "${HOME}/.junie"              "${HOME}/.junie/skills" \
-    "${HOME}/.qwen"               "${HOME}/.qwen/skills" \
-    "${HOME}/.iflow"              "${HOME}/.iflow/skills"
-}
+harness_targets="$(printf '%s\t%s\n' \
+  "${codex_home}"               "${codex_home}/skills" \
+  "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
+  "${HOME}/.gemini"             "${HOME}/.gemini/skills" \
+  "${HOME}/.gemini/antigravity" "${HOME}/.gemini/antigravity/skills" \
+  "${HOME}/.copilot"            "${HOME}/.copilot/skills" \
+  "${HOME}/.config/opencode"    "${HOME}/.config/opencode/skills" \
+  "${HOME}/.config/goose"       "${HOME}/.config/goose/skills" \
+  "${HOME}/.config/crush"       "${HOME}/.config/crush/skills" \
+  "${HOME}/.codeium/windsurf"   "${HOME}/.codeium/windsurf/skills" \
+  "${HOME}/.factory"            "${HOME}/.factory/skills" \
+  "${HOME}/.roo"                "${HOME}/.roo/skills" \
+  "${HOME}/.kilocode"           "${HOME}/.kilocode/skills" \
+  "${HOME}/.junie"              "${HOME}/.junie/skills" \
+  "${HOME}/.qwen"               "${HOME}/.qwen/skills" \
+  "${HOME}/.iflow"              "${HOME}/.iflow/skills")"
 
 enable_codex_prompt_alias() {
   local prompt_dir="${codex_home}/prompts"
@@ -294,7 +292,7 @@ while IFS=$'\t' read -r marker dir; do
   if [[ -e "${marker}" ]]; then
     link_dirs+=("${dir}")
   fi
-done < <(harness_targets)
+done <<< "${harness_targets}"
 
 for dir in "${link_dirs[@]}"; do
   if [[ "${dir}" == "${canonical}" ]]; then
