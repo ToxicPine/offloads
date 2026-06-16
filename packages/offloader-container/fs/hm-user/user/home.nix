@@ -27,16 +27,7 @@ let
     alsa-lib = alsa-lib-container;
     procps = procps-container;
   };
-  opencode-container = pkgs.symlinkJoin {
-    name = "opencode-container";
-    paths = [ pkgs.opencode ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/opencode \
-        --prefix PATH : ${lib.makeBinPath [ procps-container ]}
-    '';
-  };
-  opencodePorts = import ../../opencode-ports.nix;
+  opencode = import ../../opencode.nix { inherit pkgs; };
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
     runtimeInputs = [ pkgs.coreutils ];
@@ -280,7 +271,7 @@ in
   home.activation.startOpencodeServer = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     if [ -z "''${DRY_RUN:-}" ] && [ -n "''${OPENCODE_SERVER_PASSWORD:-}" ]; then
       cors=()
-      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME:${toString opencodePorts.external}")
+      [ -n "''${HOSTNAME:-}" ] && cors+=(--cors "https://$HOSTNAME:${toString opencode.ports.external}")
       if [ -n "''${OPENCODE_SERVER_CORS:-}" ]; then
         IFS=',' read -ra extra <<<"$OPENCODE_SERVER_CORS"
         for origin in "''${extra[@]}"; do
@@ -291,9 +282,9 @@ in
       if ! ${remote-control-launcher}/bin/remote-control-launcher \
         --name opencode \
         -- \
-        ${opencode-container}/bin/opencode serve \
+        ${opencode.package}/bin/opencode serve \
         --hostname 0.0.0.0 \
-        --port "''${OPENCODE_SERVER_PORT:-${toString opencodePorts.internal}}" \
+        --port "''${OPENCODE_SERVER_PORT:-${toString opencode.ports.internal}}" \
         "''${cors[@]}"
       then
         echo "Warning: failed to launch OpenCode server supervisor" >&2

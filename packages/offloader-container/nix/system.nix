@@ -7,7 +7,7 @@ let
   procps-container = pkgs.procps.override {
     withSystemd = false;
   };
-  opencodePorts = import ../fs/opencode-ports.nix;
+  opencode = import ../fs/opencode.nix { inherit pkgs; };
 in
 {
   imageName = "container-agent";
@@ -23,7 +23,7 @@ in
     port = 4096;
   };
 
-  extraExposedPorts = [ opencodePorts.internal ];
+  extraExposedPorts = [ opencode.ports.internal ];
 
   spawnables = [
     {

@@ -51,15 +51,7 @@ let
         --prefix PATH : ${lib.makeBinPath [ procps-container ]}
     '';
   };
-  opencode-container = pkgs.symlinkJoin {
-    name = "opencode-container";
-    paths = [ pkgs.opencode ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/opencode \
-        --prefix PATH : ${lib.makeBinPath [ procps-container ]}
-    '';
-  };
+  opencode-container = (import ../opencode.nix { inherit pkgs; }).package;
 in
 
 {
