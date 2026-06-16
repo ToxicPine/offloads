@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
+: "${HOME:?environment variable must be set to locate the install directory}"
+
 assume_yes=0
 silent=0
 bold=''
@@ -25,26 +27,29 @@ usage() {
   printf '%s\n' '  --silent   Suppress normal output and skip the confirmation prompt.'
 }
 
-for arg in "$@"; do
-  case "${arg}" in
-    --yes|-y)
-      assume_yes=1
-      ;;
-    --silent)
-      silent=1
-      assume_yes=1
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      printf 'Unknown option: %s\n' "${arg}" >&2
-      usage >&2
-      exit 2
-      ;;
-  esac
-done
+parse_args() {
+  local arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --yes|-y)
+        assume_yes=1
+        ;;
+      --silent)
+        silent=1
+        assume_yes=1
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        printf 'Unknown Option: %s\n' "${arg}" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+  done
+}
 
 log() {
   if [[ "${silent}" -eq 0 ]]; then
@@ -86,34 +91,26 @@ confirm() {
     return 0
   fi
 
-  if [[ ! -r /dev/tty ]]; then
+  local response
+
+  # /dev/tty can stat as readable yet fail to open with no controlling terminal,
+  # so attempt the prompt write itself and bail if it fails.
+  if ! printf '\n%s' "${bold}Continue?${reset} [y/N] " >/dev/tty 2>/dev/null; then
     printf '%s\n' 'No interactive terminal available. Re-run with --yes or --silent to continue.' >&2
     exit 1
   fi
 
-  local response
-
-  printf '\n%s' "${bold}Continue?${reset} [y/N] " > /dev/tty
-
-  IFS= read -r response < /dev/tty
+  IFS= read -r response </dev/tty || response=''
   case "${response}" in
     y|Y|yes|YES|Yes)
-      printf '\n' > /dev/tty
+      printf '\n' >/dev/tty
       ;;
     *)
-      printf '%s\n' 'Canceled.' > /dev/tty
+      printf '%s\n' 'Canceled.' >/dev/tty
       exit 0
       ;;
   esac
 }
-
-intro
-confirm
-
-if ! command -v npx >/dev/null 2>&1; then
-  printf '%s\n' 'npx is required; install Node.js, then run this script again.' >&2
-  exit 1
-fi
 
 retry() {
   local label="${1}"
@@ -124,7 +121,7 @@ retry() {
   local max_attempts=5
   local log_file
 
-  log_file="$(mktemp -t offload-install.XXXXXX)"
+  log_file="$(mktemp "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
   log "${label}"
 
   while :; do
@@ -134,8 +131,8 @@ retry() {
     fi
 
     if [[ "${attempt}" -ge "${max_attempts}" ]]; then
-      printf 'Failed after %s attempts: %s\n' "${attempt}" "${label}" >&2
-      printf '%s\n' 'Last command output:' >&2
+      printf 'Failed After %s Attempts: %s\n' "${attempt}" "${label}" >&2
+      printf '%s\n' 'Last Command Output:' >&2
       sed 's/^/  /' "${log_file}" >&2
       rm -f "${log_file}"
       return 1
@@ -150,41 +147,158 @@ retry() {
   done
 }
 
-enable_codex_prompt_alias() {
-  local codex_home="${CODEX_HOME:-${HOME}/.codex}"
-  local agents_home="${AGENTS_HOME:-${HOME}/.agents}"
-  local prompt_dir="${codex_home}/prompts"
-  local prompt_file="${prompt_dir}/offload.md"
-  local source_file=''
-  local candidate
+repo='ToxicPine/offloads'
+ref="${OFFLOAD_REF:-master}"
+skills=(offload offloader offloader-configurator boondoggler)
 
-  for candidate in \
-    "${agents_home}/skills/offload/SKILL.md" \
-    "${codex_home}/skills/offload/SKILL.md" \
-    "${HOME}/.codex/skills/offload/SKILL.md"; do
-    if [[ -f "${candidate}" ]]; then
-      source_file="${candidate}"
-      break
-    fi
-  done
+canonical="${AGENTS_HOME:-${HOME}/.agents}/skills"
 
-  if [[ -z "${source_file}" ]]; then
-    return 0
+workdir=''
+cleanup() {
+  if [[ -n "${workdir}" ]]; then
+    rm -rf -- "${workdir}"
   fi
+}
+trap cleanup EXIT
 
-  if [[ -L "${prompt_file}" ]]; then
-    return 0
-  fi
-
-  if [[ -e "${prompt_file}" ]]; then
-    return 0
-  fi
-
-  mkdir -p "${prompt_dir}" >/dev/null 2>&1 || return 0
-  ln -s "${source_file}" "${prompt_file}" >/dev/null 2>&1 || return 0
-
-  return 0
+git_clone() {
+  rm -rf -- "${workdir}/src"
+  git clone --quiet --depth 1 --branch "${ref}" \
+    "https://github.com/${repo}.git" "${workdir}/src"
 }
 
-retry "${green}Installing /offload Plugin...${reset}" npx skills add https://github.com/ToxicPine/offloads -g -a -y -s offload offloader offloader-configurator boondoggler
-enable_codex_prompt_alias
+fetch_skills() {
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
+  local tarball="${workdir}/offloads.tar.gz"
+  local tar_url="https://codeload.github.com/${repo}/tar.gz/refs/heads/${ref}"
+  local label="${green}Downloading /offload Skills...${reset}"
+
+  if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    retry "${label}" curl -fsSL "${tar_url}" -o "${tarball}"
+  elif command -v wget >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    retry "${label}" wget -qO "${tarball}" "${tar_url}"
+  elif command -v git >/dev/null 2>&1; then
+    retry "${label}" git_clone
+    return 0
+  else
+    printf '%s\n' 'Need curl or wget (with tar), or git, to download the skills.' >&2
+    exit 1
+  fi
+
+  tar -C "${workdir}" -xzf "${tarball}"
+}
+
+# Sets found_skill to the skill's extracted directory, or '' if absent.
+found_skill=''
+find_skill() {
+  local name="${1}"
+  local dir
+  found_skill=''
+  for dir in "${workdir}"/*/packages/*/skills/"${name}"; do
+    if [[ -d "${dir}" ]]; then
+      found_skill="${dir}"
+      return 0
+    fi
+  done
+}
+
+install_canonical() {
+  local name="${1}"
+  local dest staging
+  find_skill "${name}"
+  if [[ -z "${found_skill}" ]]; then
+    printf 'Skill Not Found in Download: %s\n' "${name}" >&2
+    return 1
+  fi
+
+  dest="${canonical}/${name}"
+  staging="${canonical}/.${name}.new.$$"
+  mkdir -p "${canonical}"
+
+  # Stage fully, then swap by rename: a failed copy never destroys the existing
+  # install, and the replacement leaves no stale files behind.
+  rm -rf -- "${staging}"
+  if ! cp -R "${found_skill}" "${staging}"; then
+    rm -rf -- "${staging}"
+    printf 'Failed to Stage Skill: %s\n' "${name}" >&2
+    return 1
+  fi
+  rm -rf -- "${dest}"
+  mv -- "${staging}" "${dest}"
+}
+
+link_skill() {
+  local name="${1}"
+  local dir="${2}"
+  local target="${canonical}/${name}"
+  local link="${dir}/${name}"
+
+  mkdir -p "${dir}" 2>/dev/null || return 0
+
+  if [[ -e "${link}" && ! -L "${link}" ]]; then
+    log "  Skipped ${link} (exists and is not a symlink)"
+    return 0
+  fi
+
+  if ! ln -sfn "${target}" "${link}" 2>/dev/null; then
+    rm -rf -- "${link}"
+    cp -R "${target}" "${link}"
+  fi
+}
+
+link_into() {
+  local dir="${1}"
+  if [[ "${dir}" == "${canonical}" ]]; then
+    return 0
+  fi
+  local skill
+  for skill in "${skills[@]}"; do
+    link_skill "${skill}" "${dir}"
+  done
+}
+
+# Detected harnesses with a custom global skills dir. Format: <marker>\t<dir>.
+harness_targets="$(printf '%s\t%s\n' \
+  "${CODEX_HOME:-${HOME}/.codex}" "${CODEX_HOME:-${HOME}/.codex}/skills" \
+  "${HOME}/.cursor"             "${HOME}/.cursor/skills" \
+  "${HOME}/.gemini"             "${HOME}/.gemini/skills" \
+  "${HOME}/.gemini/antigravity" "${HOME}/.gemini/antigravity/skills" \
+  "${HOME}/.copilot"            "${HOME}/.copilot/skills" \
+  "${HOME}/.config/opencode"    "${HOME}/.config/opencode/skills" \
+  "${HOME}/.config/goose"       "${HOME}/.config/goose/skills" \
+  "${HOME}/.config/crush"       "${HOME}/.config/crush/skills" \
+  "${HOME}/.codeium/windsurf"   "${HOME}/.codeium/windsurf/skills" \
+  "${HOME}/.factory"            "${HOME}/.factory/skills" \
+  "${HOME}/.roo"                "${HOME}/.roo/skills" \
+  "${HOME}/.kilocode"           "${HOME}/.kilocode/skills" \
+  "${HOME}/.junie"              "${HOME}/.junie/skills" \
+  "${HOME}/.qwen"               "${HOME}/.qwen/skills" \
+  "${HOME}/.iflow"              "${HOME}/.iflow/skills")"
+
+install_skills() {
+  local skill
+  for skill in "${skills[@]}"; do
+    install_canonical "${skill}"
+  done
+}
+
+main() {
+  local marker dir
+
+  parse_args "$@"
+  intro
+  confirm
+  fetch_skills
+  install_skills
+
+  link_into "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills"
+  while IFS=$'\t' read -r marker dir; do
+    if [[ -e "${marker}" ]]; then
+      link_into "${dir}"
+    fi
+  done <<< "${harness_targets}"
+
+  log "${green}Installed /offload Skills.${reset}"
+}
+
+main "$@"
