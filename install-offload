@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
+: "${HOME:?environment variable must be set to locate the install directory}"
+
 assume_yes=0
 silent=0
 bold=''
@@ -119,7 +121,7 @@ retry() {
   local max_attempts=5
   local log_file
 
-  log_file="$(mktemp -t offload-install.XXXXXX)"
+  log_file="$(mktemp "${TMPDIR:-/tmp}/offload-install.XXXXXX")"
   log "${label}"
 
   while :; do
@@ -213,17 +215,14 @@ install_canonical() {
   staging="${canonical}/.${name}.new.$$"
   mkdir -p "${canonical}"
 
-  # Stage the new copy in full first, so a failure here leaves any existing
-  # install untouched.
+  # Stage the new copy in full, then swap it in by rename, so the existing
+  # install is removed only once the replacement is ready and no stale files survive.
   rm -rf -- "${staging}"
   if ! cp -R "${found_skill}" "${staging}"; then
     rm -rf -- "${staging}"
     printf 'Failed to stage skill: %s\n' "${name}" >&2
     return 1
   fi
-
-  # Swap by rename: the old version is removed only now that the new one is
-  # ready, and the two never share the directory, so no stale files survive.
   rm -rf -- "${dest}"
   mv -- "${staging}" "${dest}"
 }
