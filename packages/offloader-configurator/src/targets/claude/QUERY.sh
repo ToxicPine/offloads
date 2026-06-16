@@ -6,15 +6,12 @@ credentials_json="${claude_config_dir}/.credentials.json"
 bashrc="${HOME}/.bashrc"
 
 authenticated=false
-credentials_present=false
-oauth_token_configured=false
+credential_source="none"
 
 if [[ -s "${credentials_json}" ]]; then
-  credentials_present=true
-fi
-
-if [[ -f "${bashrc}" ]] && grep -q "CLAUDE_CODE_OAUTH_TOKEN" "${bashrc}"; then
-  oauth_token_configured=true
+  credential_source="credentials"
+elif [[ -f "${bashrc}" ]] && grep -q "CLAUDE_CODE_OAUTH_TOKEN" "${bashrc}"; then
+  credential_source="token"
 fi
 
 if status_json="$(claude auth status --json 2>/dev/null)"; then
@@ -26,12 +23,10 @@ fi
 
 jq -n \
   --argjson authenticated "${authenticated}" \
+  --arg credentialSource "${credential_source}" \
   --arg claudeConfigDir "${claude_config_dir}" \
-  --argjson credentialsPresent "${credentials_present}" \
-  --argjson oauthTokenConfigured "${oauth_token_configured}" \
   '{
     authenticated: $authenticated,
-    claudeConfigDir: $claudeConfigDir,
-    credentialsPresent: $credentialsPresent,
-    oauthTokenConfigured: $oauthTokenConfigured
+    credentialSource: $credentialSource,
+    claudeConfigDir: $claudeConfigDir
   }'

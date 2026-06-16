@@ -169,9 +169,10 @@ offloader-configurator --json --transport "offloader-ssh box" claude configure -
 ```
 
 The `claude check` command and the post-configure state read `claude auth status --json` on the
-remote for the `authenticated` field. Never print or paste the `.credentials.json` contents or the
-OAuth token in the final response. Report only whether configuration succeeded and the resulting
-`authenticated`, `claudeConfigDir`, `credentialsPresent`, and `oauthTokenConfigured` fields.
+remote for the `authenticated` field, and report `credentialSource` (`credentials`, `token`, or
+`none`) for the kind of auth material present. Never print or paste the `.credentials.json` contents
+or the OAuth token in the final response. Report only whether configuration succeeded and the
+resulting `authenticated`, `credentialSource`, and `claudeConfigDir` fields.
 
 ## Useful Options
 
@@ -230,6 +231,6 @@ After `claude check` or `claude configure`, report:
 - The target and command, e.g. `claude configure`.
 - The transport target, e.g. `offloader-ssh box`.
 - Whether Claude reports authenticated.
-- The Claude config dir, whether credentials are present, and whether an OAuth token is configured.
+- The credential source (`credentials`, `token`, or `none`) and the Claude config dir.
 
 Never include `.credentials.json` contents or the OAuth token.

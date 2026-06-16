@@ -57,9 +57,8 @@ const opencodeStateLabels = {
 
 const claudeStateLabels = {
   authenticated: "claude authenticated",
+  credentialSource: "claude credential source",
   claudeConfigDir: "claude config dir",
-  credentialsPresent: "claude credentials present",
-  oauthTokenConfigured: "claude oauth token configured",
 };
 
 async function main(): Promise<void> {
