@@ -25,26 +25,29 @@ usage() {
   printf '%s\n' '  --silent   Suppress normal output and skip the confirmation prompt.'
 }
 
-for arg in "$@"; do
-  case "${arg}" in
-    --yes|-y)
-      assume_yes=1
-      ;;
-    --silent)
-      silent=1
-      assume_yes=1
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      printf 'Unknown option: %s\n' "${arg}" >&2
-      usage >&2
-      exit 2
-      ;;
-  esac
-done
+parse_args() {
+  local arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --yes|-y)
+        assume_yes=1
+        ;;
+      --silent)
+        silent=1
+        assume_yes=1
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        printf 'Unknown option: %s\n' "${arg}" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+  done
+}
 
 log() {
   if [[ "${silent}" -eq 0 ]]; then
@@ -106,9 +109,6 @@ confirm() {
       ;;
   esac
 }
-
-intro
-confirm
 
 retry() {
   local label="${1}"
@@ -241,6 +241,19 @@ link_skill() {
   fi
 }
 
+# Link every requested skill from a harness directory back to the canonical copy.
+link_into() {
+  local dir="${1}"
+  if [[ "${dir}" == "${canonical}" ]]; then
+    return 0
+  fi
+  local skill
+  for skill in "${skills[@]}"; do
+    link_skill "${skill}" "${dir}"
+  done
+  log "  linked into ${dir}"
+}
+
 # Harnesses that keep skills in their own global directory; each detected one
 # is symlinked back to the canonical copy. Format: "<detection marker>\t<dir>".
 harness_targets="$(printf '%s\t%s\n' \
@@ -279,30 +292,34 @@ enable_codex_prompt_alias() {
   return 0
 }
 
-fetch_skills
-
-for skill in "${skills[@]}"; do
-  install_canonical "${skill}"
-done
-log "${green}Installed skills to ${canonical}${reset}"
-
-# Always cover Claude Code, then add every other harness present on the system.
-link_dirs=("${claude_home}/skills")
-while IFS=$'\t' read -r marker dir; do
-  if [[ -e "${marker}" ]]; then
-    link_dirs+=("${dir}")
-  fi
-done <<< "${harness_targets}"
-
-for dir in "${link_dirs[@]}"; do
-  if [[ "${dir}" == "${canonical}" ]]; then
-    continue
-  fi
+# Copy every requested skill into the canonical store.
+install_skills() {
+  local skill
   for skill in "${skills[@]}"; do
-    link_skill "${skill}" "${dir}"
+    install_canonical "${skill}"
   done
-  log "  linked into ${dir}"
-done
+  log "${green}Installed skills to ${canonical}${reset}"
+}
 
-enable_codex_prompt_alias
-log "${green}Done.${reset}"
+main() {
+  local marker dir
+
+  parse_args "$@"
+  intro
+  confirm
+  fetch_skills
+  install_skills
+
+  # Always cover Claude Code, then add every other harness present on the system.
+  link_into "${claude_home}/skills"
+  while IFS=$'\t' read -r marker dir; do
+    if [[ -e "${marker}" ]]; then
+      link_into "${dir}"
+    fi
+  done <<< "${harness_targets}"
+
+  enable_codex_prompt_alias
+  log "${green}Done.${reset}"
+}
+
+main "$@"
