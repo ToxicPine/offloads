@@ -94,7 +94,8 @@ persistent home storage and GitHub access.
 
 That is separate from viewing a web page. Another skill handles it: `offloader-target` covers the
 state of a handed-off run on the machine, including an open-ended coding-assistant run's progress
-and completion.
+and completion. Detached open-ended runs keep their output in `<worktree>.log` on the target, and
+the finished/failed state arrives as a status commit on the run branch.
 
 That is a target-side skill. If the user is already talking to an agent on the machine, for
 example through Telegram, that agent should use them directly. If you only have the local machine,

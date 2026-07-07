@@ -74,11 +74,19 @@ offloader -- npm run dev
 offloader --command 'npm run test'
 ```
 
-Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. It does not create a standard log file or pidfile. If logs are not present as files, say so and report process state, worktree status, last commit, and recent file activity instead.
+Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. Detached open-ended runs leave two files beside the worktree — `<worktree>.run.sh` (what was launched) and `<worktree>.log` (the run's output). Fixed commands run attached and leave no log file of their own; for those, say so and report process state, worktree status, last commit, and recent file activity instead.
 
 ## Open-Ended Harness Runs
 
-Open-ended dispatches run a coding harness CLI in the worktree, usually `claude -p "/goal ..."` or `codex exec ...`, wrapped so worktree state is committed and pushed when the run ends. Check whether one is still alive:
+Open-ended dispatches run a coding harness CLI in the worktree, usually `claude -p "/goal ..."` or `codex exec ...`, wrapped so worktree state is committed and pushed when the run ends. They are normally detached with `setsid`, so expect no parent session. Read progress and the launched script directly:
+
+```bash
+worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
+tail -n 50 "${worktree}.log"
+cat "${worktree}.run.sh"
+```
+
+Check whether a run is still alive:
 
 ```bash
 pgrep -af 'claude|codex' || true

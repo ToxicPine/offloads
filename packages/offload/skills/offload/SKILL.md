@@ -198,8 +198,9 @@ when this skill provisions the machine.
 - Open-ended task: compose the publish-wrapped harness command into a `remote_script` variable
   exactly as `references/open-ended-runs.md` shows, then dispatch it the same way:
   `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"`.
-  The configured assistant works until done, and the wrapper pushes the result back on the run
-  branch. This requires an assistant, such as Codex or Claude Code, configured through
+  Open-ended runs launch detached by default, so the dispatch returns as soon as the run starts and
+  the run survives disconnects; the wrapper pushes the result back on the run branch when it ends.
+  This requires an assistant, such as Codex or Claude Code, configured through
   `offloader-configurator` (`references/assistants-on-the-machine.md`).
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
@@ -207,7 +208,8 @@ The work starts inside the project directory on the remote target, so the enviro
 progress pings, wrap the command with `vusperize`, which runs alongside it on the remote target.
 
 **Report back.** Tell the user which branch receives the work, which target ran it, and how to check
-progress later. `offloader-target` is a target-side skill. It is useful when
+progress later. For a detached open-ended run, also relay the launch line the dispatch printed
+(pid and `<worktree>.log` path on the target). `offloader-target` is a target-side skill. It is useful when
 the user talks to an agent on the remote target, for example over Telegram. If the user is local
 only, use `OFFLOADER_TRANSPORT` to run a target-side command that asks the remote agent or configured
 assistant to inspect the run and print the answer back locally.

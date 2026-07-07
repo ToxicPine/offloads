@@ -27,6 +27,7 @@ pass the variable as one argument. This is the whole shape, here with Claude Cod
 
 ```bash
 remote_script=$(cat <<'REMOTE'
+cat > "${PWD}.run.sh" <<'RUN'
 task=$(cat <<'TASK'
 <objective and completion condition - any quotes, $vars, and `backticks` are safe here>
 TASK
@@ -37,22 +38,48 @@ git add -A
 git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
 git push -u origin HEAD
 [[ "${status}" == complete ]]
+RUN
+setsid bash "${PWD}.run.sh" > "${PWD}.log" 2>&1 < /dev/null &
+echo "run detached: pid ${!}, log ${PWD}.log"
 REMOTE
 )
 : "${skill_dir:?resolve to the directory containing the offload SKILL.md}"
 "${skill_dir}/scripts/nix" run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"
 ```
 
-Rules that make this work first time:
+Two layers, one job each: the `RUN` script is the run itself — task, harness, publish wrapper —
+and the `REMOTE` script only writes it down and launches it. Rules that make this work first time:
 
 - Keep every heredoc delimiter quoted (`<<'REMOTE'`) and distinct, and make sure no line of the
   task text equals a delimiter.
 - The trailing git steps are the safety net that returns partial work even when the run dies
-  mid-task: `status=failed` commits still push, and the final `[[ … ]]` propagates the failure back
-  through the transport to the local caller.
+  mid-task: `status=failed` commits still push.
 - Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
+
+## Launching: detached by default
+
+The transports run commands in the foreground of the login session, and that session dies when the
+user's machine sleeps or drops. `setsid` is the whole persistence mechanism: it starts the run in
+its own session, out of reach of the hangup that kills the login session, with its output on disk.
+Detach by default — it is the point of offloading. The launch leaves two files beside the worktree
+(derived from `${PWD}`, so per-run unique and never swept into a commit):
+
+- `<worktree>.run.sh` — exactly what was launched, for inspection.
+- `<worktree>.log` — the run's combined output, for progress checks.
+
+With a detached run the dispatch returns immediately and its exit status only confirms the launch.
+The outcome arrives as the status commit on the run branch, and progress lives in the log —
+`offloader-target` reads both.
+
+**Attach only when the user is actively watching a short, bounded run** and wants output and exit
+status inline: make the `REMOTE` script the `RUN` content itself, dropping the `cat`/`setsid`
+lines. Then the final `[[ "${status}" == complete ]]` propagates failure back through the transport
+to the local caller — and the run dies with the connection, which is the trade being made.
+
+`setsid` comes with util-linux and is on the provisioned container. If a user-managed target lacks
+it, `nohup bash "${PWD}.run.sh" > "${PWD}.log" 2>&1 < /dev/null &` is the fallback.
 
 ## Claude Code
 
@@ -95,10 +122,11 @@ Codex's persisted-goal machinery is exposed only through the `codex app-server` 
 and turn status alone, in the script, never by reading the run's conversation: the event stream
 carries the whole conversation, which is far too heavy to feed to a model.
 
-Use this driver as the harness step. The remote script for this variant is the publish wrapper
+Use this driver as the harness step. The `RUN` script for this variant is the publish wrapper
 with the harness line swapped for a temp-file driver — written **outside the worktree** (never
 inside it, where `git add -A` would sweep it into the status commit), with `task` exported, since
-the driver runs as a child process and an unexported `task` would arrive empty:
+the driver runs as a child process and an unexported `task` would arrive empty. Launch it detached
+like any other run:
 
 ```bash
 task=$(cat <<'TASK'
@@ -198,7 +226,8 @@ so the rules are about not defeating that isolation:
 - `codex exec resume --last` picks the most recent session **for its working directory**, so run it
   from that run's worktree; from anywhere else (or with `--all`) it can resume a different run's
   session. Claude Code sessions are likewise scoped to the directory they ran in.
-- The wrapper and driver write nothing shared: the driver file is a fresh `mktemp` path and all git
+- The wrapper and driver write nothing shared: the driver file is a fresh `mktemp` path,
+  `<worktree>.run.sh` and `<worktree>.log` derive from each run's own worktree path, and all git
   activity happens on the run's own branch in its own worktree.
 
 ## Choosing a harness
