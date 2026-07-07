@@ -85,6 +85,19 @@ pgrep -af 'claude|codex' || true
 ps -eo pid,ppid,etime,stat,cmd --sort=etime | rg 'claude|codex' || true
 ```
 
+Several runs can be live at once, and the command line rarely names the worktree. Attribute a harness process to a specific run by its working directory:
+
+```bash
+worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
+while IFS= read -r pid; do
+  cwd=$(readlink "/proc/${pid}/cwd" 2>/dev/null) || cwd=""
+  case "${cwd}" in
+    "${worktree}"|"${worktree}"/*) ps -o pid,etime,cmd -p "${pid}" ;;
+    *) : ;;
+  esac
+done < <(pgrep -f 'claude|codex' || true)
+```
+
 The wrapper's completion signal is a commit whose subject matches:
 
 ```text

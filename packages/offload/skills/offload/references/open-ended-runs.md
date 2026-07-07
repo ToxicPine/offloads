@@ -95,13 +95,33 @@ Codex's persisted-goal machinery is exposed only through the `codex app-server` 
 and turn status alone, in the script, never by reading the run's conversation: the event stream
 carries the whole conversation, which is far too heavy to feed to a model.
 
-Use this driver as the harness step: have the remote script write it to a file with another quoted
-heredoc (e.g. `cat > .offload-goal-driver.sh <<'DRIVER' … DRIVER`), then run
-`bash .offload-goal-driver.sh || status=failed` in place of the `claude`/`codex` line, keeping the
-publish wrapper around it. It expects `${task}` from the enclosing script. It sets the goal, kicks
-the first turn, then reacts only to status signals — `thread/goal/updated` notifications plus a
-`thread/goal/get` poll after each completed turn, the same belt-and-braces the retired boondoggler
-tool used in production:
+Use this driver as the harness step. The remote script for this variant is the publish wrapper
+with the harness line swapped for a temp-file driver — written **outside the worktree** (never
+inside it, where `git add -A` would sweep it into the status commit), with `task` exported, since
+the driver runs as a child process and an unexported `task` would arrive empty:
+
+```bash
+task=$(cat <<'TASK'
+<objective and completion condition>
+TASK
+)
+export task
+driver_file=$(mktemp)
+cat > "${driver_file}" <<'DRIVER'
+# ... the driver script below ...
+DRIVER
+status=complete
+bash "${driver_file}" || status=failed
+rm -f "${driver_file}"
+git add -A
+git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
+git push -u origin HEAD
+[[ "${status}" == complete ]]
+```
+
+The driver itself sets the goal, kicks the first turn, then reacts only to status signals —
+`thread/goal/updated` notifications plus a `thread/goal/get` poll after each completed turn, the
+same belt-and-braces the retired boondoggler tool used in production:
 
 ```bash
 coproc CODEX { codex app-server; }
@@ -163,6 +183,23 @@ exit 1
 The thread must be persisted (not ephemeral) and idle when the goal is set; the driver satisfies
 both by starting its own thread. `jq` must be on the target's `PATH` (it is on the provisioned
 container).
+
+## Simultaneous offloads
+
+Concurrent runs are isolated by construction — each dispatch gets its own run branch and worktree —
+so the rules are about not defeating that isolation:
+
+- Let `offloader` generate the run id. If you must set `OFFLOADER_RUN_ID`, keep it lowercase and
+  unique: the run branch (`offloader/<run-id>`) and the worktree directory name both derive from
+  it, generated ids are lowercase, and two ids differing only by case collide wherever the
+  filesystem is case-insensitive.
+- Never give two simultaneous runs the same `OFFLOADER_RUN_ID`, `OFFLOADER_RUN_BRANCH`, or
+  `OFFLOADER_WORKTREE_NAME`.
+- `codex exec resume --last` picks the most recent session **for its working directory**, so run it
+  from that run's worktree; from anywhere else (or with `--all`) it can resume a different run's
+  session. Claude Code sessions are likewise scoped to the directory they ran in.
+- The wrapper and driver write nothing shared: the driver file is a fresh `mktemp` path and all git
+  activity happens on the run's own branch in its own worktree.
 
 ## Choosing a harness
 
