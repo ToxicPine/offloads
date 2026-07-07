@@ -22,23 +22,25 @@ Every open-ended run needs three things:
 `offloader` base64-encodes the command, so it arrives on the target byte-for-byte; the only quoting
 hazard is local, while building the string. Never inline the task text into a single-quoted command
 string — an apostrophe in the task breaks it. Build the script with quoted heredocs instead, then
-pass the variable as one argument:
+pass the variable as one argument. This is the whole shape, here with Claude Code as the harness
+(`skill_dir` is the `<skill-dir>` this skill resolves):
 
 ```bash
 remote_script=$(cat <<'REMOTE'
 task=$(cat <<'TASK'
-<objective and completion condition — any quotes, $vars, and `backticks` are safe here>
+<objective and completion condition - any quotes, $vars, and `backticks` are safe here>
 TASK
 )
 status=complete
-<harness command using "${task}"> || status=failed
+claude -p --permission-mode bypassPermissions "/goal ${task}" || status=failed
 git add -A
 git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
 git push -u origin HEAD
-test "$status" = complete
+[[ "${status}" == complete ]]
 REMOTE
 )
-<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "$remote_script"
+: "${skill_dir:?resolve to the directory containing the offload SKILL.md}"
+"${skill_dir}/scripts/nix" run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"
 ```
 
 Rules that make this work first time:
@@ -46,7 +48,7 @@ Rules that make this work first time:
 - Keep every heredoc delimiter quoted (`<<'REMOTE'`) and distinct, and make sure no line of the
   task text equals a delimiter.
 - The trailing git steps are the safety net that returns partial work even when the run dies
-  mid-task: `status=failed` commits still push, and the final `test` propagates the failure back
+  mid-task: `status=failed` commits still push, and the final `[[ … ]]` propagates the failure back
   through the transport to the local caller.
 - Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
@@ -55,7 +57,7 @@ Rules that make this work first time:
 ## Claude Code
 
 Claude Code runs goals from the CLI directly: `/goal` works in print mode, and one invocation runs
-the loop to completion. As the `<harness command>` above:
+the loop to completion. The harness line inside the wrapper:
 
 ```bash
 claude -p --permission-mode bypassPermissions "/goal ${task}"
@@ -63,15 +65,19 @@ claude -p --permission-mode bypassPermissions "/goal ${task}"
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
 - Add `--max-budget-usd <n>` when the user wants a spend ceiling.
-- A bounded task that needs no goal loop is just `claude -p --permission-mode bypassPermissions "${task}"`.
+- A bounded task that needs no goal loop drops the `/goal` prefix:
+  `claude -p --permission-mode bypassPermissions "${task}"`.
 - Select behavior with `--model <name>` and `--effort <low|medium|high|xhigh|max>` when asked.
+- Claude Code refuses to bypass permissions when running as root. The provisioned container runs
+  work as its non-root user, so this only bites user-managed targets: dispatch as a non-root user
+  there.
 
 ## Codex
 
 Codex has no CLI goal command; its `/goal` exists only in the interactive TUI. **Default to
 `codex exec`; use the app-server goal API below only when the user asks for a run measured in hours
 or explicitly wants goal semantics (persisted objective, automatic continuation, budget tracking).**
-As the `<harness command>` above:
+The harness line inside the wrapper:
 
 ```bash
 codex exec --sandbox danger-full-access "${task}"
@@ -85,42 +91,70 @@ codex exec --sandbox danger-full-access "${task}"
 ### Codex goal runs (app-server)
 
 Codex's persisted-goal machinery is exposed only through the `codex app-server` JSON-RPC API
-(newline-delimited JSON over stdio), so this path scripts a small client. Drive the run off the
-goal status alone, in the script, never by reading the run's conversation: the event stream carries
-the whole conversation, which is far too heavy to feed to a model.
+(newline-delimited JSON over stdio), so this path scripts a small client. Drive the run off goal
+and turn status alone, in the script, never by reading the run's conversation: the event stream
+carries the whole conversation, which is far too heavy to feed to a model.
 
-Use this driver as the `<harness command>`: have the remote script write it to a file with another
-quoted heredoc (e.g. `cat > .offload-goal-driver.sh <<'DRIVER' … DRIVER`), run it with
-`bash .offload-goal-driver.sh`, and keep the publish wrapper around it. It expects `${task}` from
-the enclosing script and handles the whole lifecycle — initialize, `thread/start`,
-`thread/goal/set`, `thread/resume`, then react only to `thread/goal/updated`:
+Use this driver as the harness step: have the remote script write it to a file with another quoted
+heredoc (e.g. `cat > .offload-goal-driver.sh <<'DRIVER' … DRIVER`), then run
+`bash .offload-goal-driver.sh || status=failed` in place of the `claude`/`codex` line, keeping the
+publish wrapper around it. It expects `${task}` from the enclosing script. It sets the goal, kicks
+the first turn, then reacts only to status signals — `thread/goal/updated` notifications plus a
+`thread/goal/get` poll after each completed turn, the same belt-and-braces the retired boondoggler
+tool used in production:
 
 ```bash
 coproc CODEX { codex app-server; }
-send() { printf '%s\n' "$1" >&"${CODEX[1]}"; }
-cfg=$(jq -cn --arg cwd "$PWD" \
+app_pid=$!
+trap 'kill "${app_pid}" 2>/dev/null || true' EXIT
+send() { printf '%s\n' "${1}" >&"${CODEX[1]}"; }
+finish_goal() {
+  case "${1}" in
+    complete) exit 0 ;;
+    blocked|budgetlimited|paused|usagelimited) echo "goal ended: ${1}" >&2; exit 1 ;;
+    *) : ;;
+  esac
+}
+cfg=$(jq -cn --arg cwd "${PWD}" \
   '{cwd:$cwd,model:"gpt-5.5",approvalPolicy:"never",sandbox:"danger-full-access"}')
 send '{"id":0,"method":"initialize","params":{"clientInfo":{"name":"offload","version":"1.0.0"}}}'
 send '{"method":"initialized","params":{}}'
-send "$(jq -cn --argjson cfg "$cfg" '{id:1,method:"thread/start",params:$cfg}')"
+payload=$(jq -cn --argjson cfg "${cfg}" '{id:1,method:"thread/start",params:$cfg}')
+send "${payload}"
 thread=""
+req_id=3
+get_id=-1
 while IFS= read -r line <&"${CODEX[0]}"; do
-  if [ -z "$thread" ]; then
-    thread=$(jq -r '.result.thread.id // empty' 2>/dev/null <<<"$line")
-    [ -n "$thread" ] && send "$(jq -cn --arg t "$thread" --arg o "$task" \
-      '{id:2,method:"thread/goal/set",params:{threadId:$t,objective:$o,status:"active"}}')"
+  if [[ -z "${thread}" ]]; then
+    thread=$(jq -r 'try (.result.thread.id // .params.thread.id // .params.threadId // empty)' 2>/dev/null <<<"${line}") || thread=""
+    if [[ -n "${thread}" ]]; then
+      payload=$(jq -cn --arg t "${thread}" --arg o "${task}" \
+        '{id:2,method:"thread/goal/set",params:{threadId:$t,objective:$o,status:"active"}}')
+      send "${payload}"
+    fi
     continue
   fi
-  if jq -e 'select(.id==2 and .result)' >/dev/null 2>&1 <<<"$line"; then
-    send "$(jq -cn --argjson cfg "$cfg" --arg t "$thread" \
-      '{id:3,method:"thread/resume",params:($cfg+{threadId:$t})}')"
+  if jq -e 'select(.id==2 and .result)' >/dev/null 2>&1 <<<"${line}"; then
+    payload=$(jq -cn --argjson cfg "${cfg}" --arg t "${thread}" \
+      '{id:3,method:"thread/resume",params:($cfg+{threadId:$t})}')
+    send "${payload}"
     continue
   fi
-  status=$(jq -r 'select(.method=="thread/goal/updated") | .params.goal.status // empty' 2>/dev/null <<<"$line")
-  case "$status" in
-    complete) exit 0 ;;
-    blocked|budgetLimited|usageLimited|paused) echo "goal ended: $status" >&2; exit 1 ;;
-  esac
+  goal_status=$(jq -r --arg t "${thread}" 'try (select(.method=="thread/goal/updated" and ((.params.threadId // .params.goal.threadId // "") == $t)) | (.params.goal.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || goal_status=""
+  finish_goal "${goal_status}"
+  got_status=$(jq -r --argjson id "${get_id}" 'try (select(.id==$id) | (.result.goal.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || got_status=""
+  finish_goal "${got_status}"
+  turn_status=$(jq -r 'try (select(.method=="turn/completed") | (.params.turn.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || turn_status=""
+  if [[ "${turn_status}" == "completed" ]]; then
+    req_id=$((req_id + 1))
+    get_id="${req_id}"
+    payload=$(jq -cn --argjson id "${get_id}" --arg t "${thread}" \
+      '{id:$id,method:"thread/goal/get",params:{threadId:$t}}')
+    send "${payload}"
+  elif [[ "${turn_status}" == "failed" || "${turn_status}" == "interrupted" ]]; then
+    echo "turn ended: ${turn_status}" >&2
+    exit 1
+  fi
 done
 echo "app-server exited without a terminal goal status" >&2
 exit 1

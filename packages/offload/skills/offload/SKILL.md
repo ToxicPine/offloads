@@ -195,9 +195,9 @@ when this skill provisions the machine.
 
 - One exact command: `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <command>`. This runs on the
   remote branch. To return changes, the command must commit and push them itself.
-- Open-ended task: compose the harness invocation and publish wrapper from
-  `references/open-ended-runs.md`, then dispatch it the same way, for example:
-  `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc '<publish-wrapped harness command>'`.
+- Open-ended task: compose the publish-wrapped harness command into a `remote_script` variable
+  exactly as `references/open-ended-runs.md` shows, then dispatch it the same way:
+  `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"`.
   The configured assistant works until done, and the wrapper pushes the result back on the run
   branch. This requires an assistant, such as Codex or Claude Code, configured through
   `offloader-configurator` (`references/assistants-on-the-machine.md`).
