@@ -132,7 +132,8 @@ git push -u origin HEAD
 
 The driver itself sets the goal, kicks the first turn, then reacts only to status signals —
 `thread/goal/updated` notifications plus a `thread/goal/get` poll after each completed turn, the
-same belt-and-braces the retired boondoggler tool used in production:
+same belt-and-braces the retired boondoggler tool used. Any error response is terminal, so a
+rejected request fails the run instead of hanging it:
 
 ```bash
 rpc_dir=$(mktemp -d)
@@ -157,9 +158,13 @@ send '{"method":"initialized","params":{}}'
 payload=$(jq -cn --argjson cfg "${cfg}" '{id:1,method:"thread/start",params:$cfg}')
 send "${payload}"
 thread=""
-req_id=3
-get_id=-1
+get_id=3
 while IFS= read -r line <&4; do
+  rpc_error=$(jq -r 'try (.error.message // empty)' 2>/dev/null <<<"${line}") || rpc_error=""
+  if [[ -n "${rpc_error}" ]]; then
+    echo "app-server error: ${rpc_error}" >&2
+    exit 1
+  fi
   if [[ -z "${thread}" ]]; then
     thread=$(jq -r 'try (.result.thread.id // .params.thread.id // .params.threadId // empty)' 2>/dev/null <<<"${line}") || thread=""
     if [[ -n "${thread}" ]]; then
@@ -169,27 +174,38 @@ while IFS= read -r line <&4; do
     fi
     continue
   fi
-  if jq -e 'select(.id==2 and .result)' >/dev/null 2>&1 <<<"${line}"; then
-    payload=$(jq -cn --argjson cfg "${cfg}" --arg t "${thread}" \
-      '{id:3,method:"thread/resume",params:($cfg+{threadId:$t})}')
-    send "${payload}"
-    continue
-  fi
-  goal_status=$(jq -r --arg t "${thread}" 'try (select(.method=="thread/goal/updated" and ((.params.threadId // .params.goal.threadId // "") == $t)) | (.params.goal.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || goal_status=""
-  finish_goal "${goal_status}"
-  got_status=$(jq -r --argjson id "${get_id}" 'try (select(.id==$id) | (.result.goal.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || got_status=""
-  finish_goal "${got_status}"
-  turn_status=$(jq -r 'try (select(.method=="turn/completed") | (.params.turn.status // "" | ascii_downcase)) // empty' 2>/dev/null <<<"${line}") || turn_status=""
-  if [[ "${turn_status}" == "completed" ]]; then
-    req_id=$((req_id + 1))
-    get_id="${req_id}"
-    payload=$(jq -cn --argjson id "${get_id}" --arg t "${thread}" \
-      '{id:$id,method:"thread/goal/get",params:{threadId:$t}}')
-    send "${payload}"
-  elif [[ "${turn_status}" == "failed" || "${turn_status}" == "interrupted" ]]; then
-    echo "turn ended: ${turn_status}" >&2
-    exit 1
-  fi
+  event=$(jq -r --arg t "${thread}" --argjson gid "${get_id}" '
+    if .id == 2 and .result then "ack|"
+    elif .method == "thread/goal/updated" and ((.params.threadId // .params.goal.threadId // "") == $t)
+      then "goal|" + ((.params.goal.status // "") | ascii_downcase)
+    elif .id == $gid and .result.goal
+      then "goal|" + ((.result.goal.status // "") | ascii_downcase)
+    elif .method == "turn/completed"
+      then "turn|" + ((.params.turn.status // "") | ascii_downcase)
+    else empty end' 2>/dev/null <<<"${line}") || event=""
+  value="${event#*|}"
+  case "${event%%|*}" in
+    ack)
+      payload=$(jq -cn --argjson cfg "${cfg}" --arg t "${thread}" \
+        '{id:3,method:"thread/resume",params:($cfg+{threadId:$t})}')
+      send "${payload}"
+      ;;
+    goal)
+      finish_goal "${value}"
+      ;;
+    turn)
+      if [[ "${value}" == "completed" ]]; then
+        get_id=$((get_id + 1))
+        payload=$(jq -cn --argjson id "${get_id}" --arg t "${thread}" \
+          '{id:$id,method:"thread/goal/get",params:{threadId:$t}}')
+        send "${payload}"
+      elif [[ "${value}" == "failed" || "${value}" == "interrupted" ]]; then
+        echo "turn ended: ${value}" >&2
+        exit 1
+      fi
+      ;;
+    *) : ;;
+  esac
 done
 echo "app-server exited without a terminal goal status" >&2
 exit 1
