@@ -224,7 +224,6 @@ and `<worktree>.log` derive from each run's own worktree path.
 
 ## Choosing a harness
 
-Use the harness the user asked for. Otherwise, if the harness this agent is itself running in is
-configured on the target, use that one — same harness, comparable model. Failing both, use
-whichever is configured; when both are and nothing else decides, Claude Code is the simplest goal
-run and `codex exec` the simplest bounded run. Say which harness was used when reporting back.
+Prefer, in order: the harness the user asked for; the one this agent is itself running in
+(comparable model), if configured on the target; whichever is configured. Say which was used when
+reporting back.
