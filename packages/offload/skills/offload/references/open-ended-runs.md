@@ -225,5 +225,5 @@ and `<worktree>.log` derive from each run's own worktree path.
 ## Choosing a harness
 
 Prefer, in order: the harness the user asked for; the one this agent is itself running in
-(comparable model), if configured on the target; whichever is configured. Say which was used when
-reporting back.
+(comparable model), if configured on the target; whichever is configured. When reporting back, say
+which was used only if it differs from the harness dispatching the run.
