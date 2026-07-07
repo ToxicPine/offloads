@@ -191,17 +191,19 @@ when this skill provisions the machine.
 - If the target exists but `offloader` cannot reach the repo or push results back, use
   `offloader-configurator` to check and configure its GitHub access.
 
-**Hand it off.**
+**Hand it off.** Whatever is dispatched runs in the foreground of the transport session and dies
+with it if the connection drops. Detach anything that should outlive the connection — that is most
+offloads, fixed command or open-ended alike — using the `setsid` pattern in
+`references/open-ended-runs.md`; dispatch plainly only for short commands watched live.
 
 - One exact command: `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <command>`. This runs on the
   remote branch. To return changes, the command must commit and push them itself.
 - Open-ended task: compose the publish-wrapped harness command into a `remote_script` variable
   exactly as `references/open-ended-runs.md` shows, then dispatch it the same way:
   `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"`.
-  Open-ended runs launch detached by default, so the dispatch returns as soon as the run starts and
-  the run survives disconnects; the wrapper pushes the result back on the run branch when it ends.
-  This requires an assistant, such as Codex or Claude Code, configured through
-  `offloader-configurator` (`references/assistants-on-the-machine.md`).
+  The wrapper pushes the result back on the run branch when the run ends. This requires an
+  assistant, such as Codex or Claude Code, configured through `offloader-configurator`
+  (`references/assistants-on-the-machine.md`).
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
 `.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`. For long jobs or

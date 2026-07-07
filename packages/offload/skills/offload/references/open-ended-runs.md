@@ -63,7 +63,8 @@ and the `REMOTE` script only writes it down and launches it. Rules that make thi
 The transports run commands in the foreground of the login session, and that session dies when the
 user's machine sleeps or drops. `setsid` is the whole persistence mechanism: it starts the run in
 its own session, out of reach of the hangup that kills the login session, with its output on disk.
-Detach by default — it is the point of offloading. The launch leaves two files beside the worktree
+Detach by default — it is the point of offloading, and the same line detaches any dispatched
+command, not just harness runs. The launch leaves two files beside the worktree
 (derived from `${PWD}`, so per-run unique and never swept into a commit):
 
 - `<worktree>.run.sh` — exactly what was launched, for inspection.

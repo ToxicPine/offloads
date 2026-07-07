@@ -74,7 +74,7 @@ offloader -- npm run dev
 offloader --command 'npm run test'
 ```
 
-Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. Detached open-ended runs leave two files beside the worktree — `<worktree>.run.sh` (what was launched) and `<worktree>.log` (the run's output). Fixed commands run attached and leave no log file of their own; for those, say so and report process state, worktree status, last commit, and recent file activity instead.
+Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. Detached runs leave their output at `<worktree>.log`, and open-ended ones also leave `<worktree>.run.sh` (what was launched). Attached runs leave no log file of their own; for those, say so and report process state, worktree status, last commit, and recent file activity instead.
 
 ## Open-Ended Harness Runs
 
