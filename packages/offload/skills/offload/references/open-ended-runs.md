@@ -135,10 +135,14 @@ The driver itself sets the goal, kicks the first turn, then reacts only to statu
 same belt-and-braces the retired boondoggler tool used in production:
 
 ```bash
-coproc CODEX { codex app-server; }
+rpc_dir=$(mktemp -d)
+mkfifo "${rpc_dir}/in" "${rpc_dir}/out"
+codex app-server < "${rpc_dir}/in" > "${rpc_dir}/out" &
 app_pid=$!
-trap 'kill "${app_pid}" 2>/dev/null || true' EXIT
-send() { printf '%s\n' "${1}" >&"${CODEX[1]}"; }
+trap 'kill "${app_pid}" 2>/dev/null || true; rm -rf "${rpc_dir}"' EXIT
+exec 3> "${rpc_dir}/in" 4< "${rpc_dir}/out"
+trap '' PIPE
+send() { printf '%s\n' "${1}" >&3; }
 finish_goal() {
   case "${1}" in
     complete) exit 0 ;;
@@ -155,7 +159,7 @@ send "${payload}"
 thread=""
 req_id=3
 get_id=-1
-while IFS= read -r line <&"${CODEX[0]}"; do
+while IFS= read -r line <&4; do
   if [[ -z "${thread}" ]]; then
     thread=$(jq -r 'try (.result.thread.id // .params.thread.id // .params.threadId // empty)' 2>/dev/null <<<"${line}") || thread=""
     if [[ -n "${thread}" ]]; then
@@ -192,8 +196,8 @@ exit 1
 ```
 
 The thread must be persisted (not ephemeral) and idle when the goal is set; the driver satisfies
-both by starting its own thread. The driver needs `jq` and bash 4 or newer on the target — both on
-the provisioned container.
+both by starting its own thread. The driver needs `jq` on the target's `PATH` (it is on the
+provisioned container).
 
 ## Simultaneous offloads
 
