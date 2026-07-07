@@ -92,7 +92,3 @@ Fly.io, plain SSH, and Tailscale SSH.
 and can generate protected share links for that port.
 
 `vusperize` wraps long work so it can send live status updates while it runs.
-
-Open-ended coding tasks run through the official Claude Code and Codex CLIs on
-the remote machine; the `offload` skill composes those invocations so results
-are committed and pushed back on the run branch.
