@@ -60,24 +60,22 @@ If a skill is missing, try `npx skills --help` and `npx skills add <repo> --list
 
 ## Tools
 
-Three custom commands are involved. Run `offloader` locally for the actual hand-off; it starts the
-other commands on the remote target.
+Two custom commands are involved, plus the coding harness CLIs already on the target. Run
+`offloader` locally for the actual hand-off; it starts the remote work.
 
 - **offloader** runs locally, inside the user's git project. It pushes the project's current state to
   the remote target as branch `offloader/<run-id>`, then starts the remote work. It does not pull
-  results back by itself. For a fixed command, that command must push its own changes. For an
-  open-ended task, `boondoggler` commits and pushes the result.
-- **boondoggler** runs on the remote target, inside the copied project. It gives a coding assistant,
-  such as Codex or Claude Code, a goal, lets it run until done, then commits changes and pushes them
-  back on the run branch. Use it through `offloader` when the task is open-ended, such as "make this
-  feature work", rather than one exact command. Configure the assistant through `offloader-configurator`; see
-  `references/assistants-on-the-machine.md`.
+  results back by itself, so every dispatched command must push its own changes.
+- **Coding harness CLIs** (`claude`, `codex`) run on the remote target, inside the copied project,
+  for open-ended tasks such as "make this feature work" rather than one exact command. Compose the
+  harness invocation and its publish wrapper from `references/open-ended-runs.md`. Configure the
+  assistant through `offloader-configurator`; see `references/assistants-on-the-machine.md`.
 - **vusperize** runs on the remote target and wraps the work so it can send live progress pings,
   for example to Telegram. Use it for long jobs or when the user asks for progress updates. If the
   user wants Telegram pings and they are not set up yet, see `references/setup-telegram.md`.
 
-`offloader` reaches the target through a transport (see "Find the target") and starts `boondoggler` or
-`vusperize` there. The Fly target keeps its files between restarts, rebuilds project dependencies
+`offloader` reaches the target through a transport (see "Find the target") and starts the requested
+command there. The Fly target keeps its files between restarts, rebuilds project dependencies
 fresh each run, and has the remote-side tools installed. If no target exists, set one up with
 `references/provision-remote-machine.md`. Otherwise assume one exists.
 
@@ -112,7 +110,6 @@ Examples:
 Offloading still works cleanly only when the target can rebuild the project environment from
 `flake.nix`. That keeps dependencies and behavior consistent after the work moves. On the target,
 prefer Nix-run invocations when commands are not already installed:
-`nix run github:ToxicPine/offloads#boondoggler` or
 `nix run github:ToxicPine/offloads#vusperize -- ...`.
 
 **Fly CLI auth must be ready before provisioning a new target.** Use
@@ -198,18 +195,19 @@ when this skill provisions the machine.
 
 - One exact command: `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <command>`. This runs on the
   remote branch. To return changes, the command must commit and push them itself.
-- Open-ended task:
-  `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc 'printf "%s" "<task>" | nix run github:ToxicPine/offloads#boondoggler'`.
-  The configured assistant works until done, then pushes the result back as a branch. This requires
-  an assistant, such as Codex or Claude Code, configured through `offloader-configurator`
-  (`references/assistants-on-the-machine.md`).
+- Open-ended task: compose the harness invocation and publish wrapper from
+  `references/open-ended-runs.md`, then dispatch it the same way, for example:
+  `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc '<publish-wrapped harness command>'`.
+  The configured assistant works until done, and the wrapper pushes the result back on the run
+  branch. This requires an assistant, such as Codex or Claude Code, configured through
+  `offloader-configurator` (`references/assistants-on-the-machine.md`).
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
 `.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`. For long jobs or
 progress pings, wrap the command with `vusperize`, which runs alongside it on the remote target.
 
 **Report back.** Tell the user which branch receives the work, which target ran it, and how to check
-progress later. `offloader-target` and `boondoggler-runs` are target-side skills. They are useful when
+progress later. `offloader-target` is a target-side skill. It is useful when
 the user talks to an agent on the remote target, for example over Telegram. If the user is local
 only, use `OFFLOADER_TRANSPORT` to run a target-side command that asks the remote agent or configured
 assistant to inspect the run and print the answer back locally.

@@ -1,9 +1,9 @@
 # Coding assistants on the machine
 
-Open-ended hand-offs use `boondoggler` to run a coding assistant on the target machine. That
-assistant may be **Codex** or **Claude Code**, depending on machine and user setup. Configure the
-coding assistant on the target once before using this path. If it is not configured, open-ended runs
-fail before they start.
+Open-ended hand-offs run a coding assistant's own CLI on the target machine (see
+`open-ended-runs.md`). That assistant may be **Codex** or **Claude Code**, depending on machine and
+user setup. Configure the coding assistant on the target once before using this path. If it is not
+configured, open-ended runs fail before they start.
 
 A fixed-command hand-off (`<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <cmd>`) does not need
 assistant setup.
@@ -19,11 +19,8 @@ handling. Do not duplicate those details in the offload skill.
 
 Setup is saved on the machine's persistent disk, so it should be one-time work for each assistant.
 
-After assistant setup, open-ended hand-offs will work:
-
-```bash
-<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc 'printf "%s" "<task>" | nix run github:ToxicPine/offloads#boondoggler'
-```
+After assistant setup, open-ended hand-offs will work: compose the harness invocation and publish
+wrapper from `open-ended-runs.md` and dispatch it through `offloader`.
 
 ## Checking in and steering a run from your phone
 

@@ -63,7 +63,7 @@ When working locally in the source repo, these commands often identify the Offlo
 
 ```bash
 git branch --list 'offloader/*'
-git log --all --decorate --oneline --grep='Codex Goal Worktree State' -20
+git log --all --decorate --oneline --grep='Worktree State: status=' -20
 git remote -v
 ```
 
@@ -76,4 +76,26 @@ offloader --command 'npm run test'
 
 Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. It does not create a standard log file or pidfile. If logs are not present as files, say so and report process state, worktree status, last commit, and recent file activity instead.
 
-If the command is a Boondoggler run and the `boondoggler-runs` skill is available, use that skill for Boondoggler-specific activity and completion signals.
+## Open-Ended Harness Runs
+
+Open-ended dispatches run a coding harness CLI in the worktree, usually `claude -p "/goal ..."` or `codex exec ...`, wrapped so worktree state is committed and pushed when the run ends. Check whether one is still alive:
+
+```bash
+pgrep -af 'claude|codex' || true
+ps -eo pid,ppid,etime,stat,cmd --sort=etime | rg 'claude|codex' || true
+```
+
+The wrapper's completion signal is a commit whose subject matches:
+
+```text
+Offload Run Worktree State: status=<status>
+```
+
+`status=complete` means the harness finished its goal; `status=failed` means it exited early and the commit holds partial work. Older runs used the subject prefix `Codex Goal Worktree State`. Find the latest outcome with:
+
+```bash
+git -C "$worktree" log --decorate --oneline --grep='Worktree State: status=' -20
+git -C "$worktree" log -1 --format=fuller
+```
+
+Harness runs track state through git commits and live processes, not pidfiles or status files. Report what those signals show.

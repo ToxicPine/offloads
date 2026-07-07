@@ -93,5 +93,6 @@ and can generate protected share links for that port.
 
 `vusperize` wraps long work so it can send live status updates while it runs.
 
-`boondoggler` gives Codex a goal, lets it work from the remote branch, then
-commits and pushes the result back.
+Open-ended coding tasks run through the official Claude Code and Codex CLIs on
+the remote machine; the `offload` skill composes those invocations so results
+are committed and pushed back on the run branch.
