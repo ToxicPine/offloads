@@ -131,6 +131,61 @@ but goal-conditioned summarization is strictly better when available.**
   (or `thread/read` / `thread/items/list`).
 - The compaction prompt is overridable via config (`compact_prompt`).
 
+### Focusing or customizing compaction (per-harness, verified 2026-07-07)
+
+Whether compaction can be *focused on a topic* — which turns generic
+summarization into the goal-conditioned extraction Amp advocates — varies
+sharply by harness:
+
+| Harness | Per-invocation focus | Standing override | Auto-compact affected? |
+|---|---|---|---|
+| Claude Code | **Yes** — `/compact <instructions>` | Yes — CLAUDE.md `# Compact instructions` section | CLAUDE.md: yes; `/compact` args: manual only |
+| Codex | **No** — TUI `/compact` and `thread/compact/start` take no args | Yes — `compact_prompt` config (full template replacement) | Yes on the local path; **silently ignored on OpenAI/Azure remote-compaction path** |
+| OpenCode | **No** — `/compact` takes no args | Yes — plugin hook `experimental.session.compacting` (append `output.context` or replace `output.prompt`) | Yes — manual and auto share the hook |
+| Hermes | No — `/compress` takes no args | None documented | n/a |
+
+Details and gotchas:
+
+- **Claude Code** is the only harness with per-invocation focus, and it is
+  headless-scriptable: `claude -p --resume <sid> "/compact Focus on <topic>"`
+  (documented at code.claude.com/docs/en/costs; headless form verified on this
+  machine). The instructions surface to hooks as the `custom_instructions`
+  field of the PreCompact input (null on auto-compact); a PostCompact hook
+  receives `compact_summary`. PreCompact can *veto* compaction but cannot
+  inject or rewrite instructions. A standing style can be set in CLAUDE.md
+  under a `# Compact instructions` heading — the only documented way to shape
+  auto-compact summaries. Auto-compact has enable/threshold knobs
+  (`autoCompactEnabled`, `DISABLE_AUTO_COMPACT`,
+  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) but no style knob. Note: Claude Code
+  precomputes compaction summaries in the background, but the cache is
+  deliberately bypassed when custom instructions are present — focused
+  compaction always runs fresh, so the focus is honored at the cost of latency.
+- **Codex** has no focus argument anywhere (TUI dispatch is argument-less;
+  `ThreadCompactStartParams` is `{threadId}` only). The customization channel
+  is `compact_prompt`, which replaces the entire summarization prompt and
+  applies to both manual and auto compaction on the local path. It is settable
+  per-thread via `thread/start`'s `config` map — which boondoggler's
+  `BOONDOGGLE_THREAD_CONFIG_JSON` can already carry. **Major gotcha:** on
+  OpenAI and Azure-responses providers, compaction is performed server-side
+  (`compact_remote*.rs`) and the request carries no prompt, so `compact_prompt`
+  is dead on the default provider. Any /offload use must not assume the
+  override took effect.
+- **OpenCode**'s only mechanism is the documented plugin hook
+  `experimental.session.compacting`, which can append context to or fully
+  replace the compaction prompt for both manual and auto compaction. The
+  default template is Objective / Important Details / Work State / Next Move.
+  The community `opencode-handoff` plugin notably *bypasses* compaction rather
+  than customizing it — reinforcing the extraction-over-summarization pattern.
+- **Hermes**: `/compress` with no arguments, no documented config.
+
+Design implication for /offload: when generating a handoff brief from a Claude
+Code session, prefer **focused compaction or fork-resume-summarize with the
+offload goal in the instructions** — e.g. `/compact Focus on everything the
+remote agent needs to continue: <goal>` — rather than a bare `/compact`. On
+Codex, do not rely on compaction focus at all; inject a purpose-written brief
+via `thread/inject_items` instead. Treat compaction focus as a
+Claude-Code-specific capability, not a portable abstraction.
+
 ## 4. Strategy C — Copy session state to the remote machine
 
 **Verdict: works on both harnesses and is the highest-fidelity option, but
