@@ -89,18 +89,16 @@ cat "${worktree}.run.sh"
 Check whether a run is still alive:
 
 ```bash
-pgrep -af 'claude|codex' || true
-ps -eo pid,ppid,etime,stat,cmd --sort=etime | rg 'claude|codex' || true
+pgrep -fl 'claude|codex' || true
 ```
 
-Several runs can be live at once, and the command line rarely names the worktree. Attribute a harness process to a specific run by its working directory:
+Several runs can be live at once, and the command line rarely names the worktree. Attribute a harness process to a specific run by its working directory (on macOS targets, which have no `/proc`, use `lsof -a -p "${pid}" -d cwd` in place of the `readlink`):
 
 ```bash
-worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
 while IFS= read -r pid; do
   cwd=$(readlink "/proc/${pid}/cwd" 2>/dev/null) || cwd=""
   case "${cwd}" in
-    "${worktree}"|"${worktree}"/*) ps -o pid,etime,cmd -p "${pid}" ;;
+    "${worktree}"|"${worktree}"/*) ps -o pid,etime,command -p "${pid}" ;;
     *) : ;;
   esac
 done < <(pgrep -f 'claude|codex' || true)
@@ -115,9 +113,8 @@ Offload Run Worktree State: status=<status>
 `status=complete` means the harness finished its goal; `status=failed` means it exited early and the commit holds partial work. Older runs used the subject prefix `Codex Goal Worktree State`. Find the latest outcome with:
 
 ```bash
-worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
 git -C "${worktree}" log --decorate --oneline --grep='Worktree State: status=' -20
 git -C "${worktree}" log -1 --format=fuller
 ```
 
-Harness runs track state through git commits and live processes, not pidfiles or status files. Report what those signals show.
+Harness runs track state through git commits, the run log, and live processes — no pidfiles or status files. Report what those signals show.

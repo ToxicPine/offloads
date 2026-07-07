@@ -36,7 +36,7 @@ The adapter named in the transport must be on `PATH`. For SSH and Tailscale, the
 
 ## Persistence
 
-The dispatched command runs in the foreground of the transport session and dies with it if the connection drops. Detach anything that should outlive the connection — long tests, dev servers, agentic runs — with `setsid`; the dispatch then returns immediately and the run's output lands beside the worktree:
+The dispatched command runs in the foreground of the transport session and dies with it if the connection drops. Detach anything that should outlive the connection — long tests, dev servers, agentic runs — with `setsid` (`nohup` on targets without it, such as macOS); the dispatch then returns immediately and the run's output lands beside the worktree:
 
 ```bash
 run_cmd=$(cat <<'CMD'

@@ -79,8 +79,8 @@ status inline: make the `REMOTE` script the `RUN` content itself, dropping the `
 lines. Then the final `[[ "${status}" == complete ]]` propagates failure back through the transport
 to the local caller — and the run dies with the connection, which is the trade being made.
 
-`setsid` comes with util-linux and is on the provisioned container. If a user-managed target lacks
-it, `nohup bash "${PWD}.run.sh" > "${PWD}.log" 2>&1 < /dev/null &` is the fallback.
+`setsid` comes with util-linux and is on the provisioned container. On targets without it (macOS
+has none), `nohup` in its place is the same line with the same survival behavior.
 
 ## Claude Code
 
@@ -210,8 +210,8 @@ exit 1
 ```
 
 The thread must be persisted (not ephemeral) and idle when the goal is set; the driver satisfies
-both by starting its own thread. `jq` must be on the target's `PATH` (it is on the provisioned
-container).
+both by starting its own thread. The driver needs `jq` and bash 4 or newer on the target — both on
+the provisioned container.
 
 ## Simultaneous offloads
 
