@@ -17,36 +17,53 @@ Every open-ended run needs three things:
   target is a disposable container, so that is the expected posture there; do not disable approvals
   this way on a machine that matters.
 
-## The publish wrapper
+## Composing the remote command safely
 
-Compose the remote command in this shape. The trailing git steps are the safety net that returns
-partial work even when the run dies mid-task:
+`offloader` base64-encodes the command, so it arrives on the target byte-for-byte; the only quoting
+hazard is local, while building the string. Never inline the task text into a single-quoted command
+string — an apostrophe in the task breaks it. Build the script with quoted heredocs instead, then
+pass the variable as one argument:
 
 ```bash
+remote_script=$(cat <<'REMOTE'
+task=$(cat <<'TASK'
+<objective and completion condition — any quotes, $vars, and `backticks` are safe here>
+TASK
+)
 status=complete
-<harness command> || status=failed
+<harness command using "${task}"> || status=failed
 git add -A
 git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
 git push -u origin HEAD
+test "$status" = complete
+REMOTE
+)
+<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "$remote_script"
 ```
 
-Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
-If `git status` on the target shows an unfinished merge or rebase, push what is committed and
-report rather than auto-committing over it.
+Rules that make this work first time:
+
+- Keep every heredoc delimiter quoted (`<<'REMOTE'`) and distinct, and make sure no line of the
+  task text equals a delimiter.
+- The trailing git steps are the safety net that returns partial work even when the run dies
+  mid-task: `status=failed` commits still push, and the final `test` propagates the failure back
+  through the transport to the local caller.
+- Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
+- If `git status` on the target shows an unfinished merge or rebase, push what is committed and
+  report rather than auto-committing over it.
 
 ## Claude Code
 
 Claude Code runs goals from the CLI directly: `/goal` works in print mode, and one invocation runs
-the loop to completion.
+the loop to completion. As the `<harness command>` above:
 
 ```bash
-claude -p --permission-mode bypassPermissions \
-  "/goal <objective and completion condition>"
+claude -p --permission-mode bypassPermissions "/goal ${task}"
 ```
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
-- Bound the run when the user wants a ceiling: `--max-turns <n>` or `--max-budget-usd <n>`.
-- A bounded task that needs no goal loop is just `claude -p "<task>"`.
+- Add `--max-budget-usd <n>` when the user wants a spend ceiling.
+- A bounded task that needs no goal loop is just `claude -p --permission-mode bypassPermissions "${task}"`.
 - Select behavior with `--model <name>` and `--effort <low|medium|high|xhigh|max>` when asked.
 
 ## Codex
@@ -54,10 +71,10 @@ claude -p --permission-mode bypassPermissions \
 Codex has no CLI goal command; its `/goal` exists only in the interactive TUI. **Default to
 `codex exec`; use the app-server goal API below only when the user asks for a run measured in hours
 or explicitly wants goal semantics (persisted objective, automatic continuation, budget tracking).**
-Headless Codex is `codex exec`:
+As the `<harness command>` above:
 
 ```bash
-codex exec --sandbox danger-full-access '<task>'
+codex exec --sandbox danger-full-access "${task}"
 ```
 
 - One `codex exec` call runs a full multi-step turn chain to completion, so most open-ended tasks
@@ -67,21 +84,51 @@ codex exec --sandbox danger-full-access '<task>'
 
 ### Codex goal runs (app-server)
 
-Codex's persisted-goal machinery is exposed only through the `codex app-server` JSON-RPC API, and
-using it means scripting a small client. Speak newline-delimited JSON over stdio:
+Codex's persisted-goal machinery is exposed only through the `codex app-server` JSON-RPC API
+(newline-delimited JSON over stdio), so this path scripts a small client. Drive the run off the
+goal status alone, in the script, never by reading the run's conversation: the event stream carries
+the whole conversation, which is far too heavy to feed to a model.
 
-1. Send `initialize` (any `clientInfo`), then the `initialized` notification.
-2. Send `thread/start` with `{cwd, model, approvalPolicy: "never", sandbox: "danger-full-access"}`.
-3. Send `thread/goal/set` with `{threadId, objective, status: "active"}`. The thread must be
-   persisted (not ephemeral) and idle.
-4. Send `thread/resume` with the same config plus `threadId` to kick the first turn.
-5. Drive the run off the goal status alone, in the script (`jq`), never by reading the run's
-   conversation: match `thread/goal/updated` notifications (or poll `thread/goal/get`) and discard
-   every other event. The event stream carries the whole conversation, which is far too heavy to
-   feed to a model. `complete` means success; `blocked`, `budgetLimited`, and `usageLimited` mean
-   the run stopped needing intervention; a `failed` turn ends the run.
+Use this driver as the `<harness command>`: have the remote script write it to a file with another
+quoted heredoc (e.g. `cat > .offload-goal-driver.sh <<'DRIVER' … DRIVER`), run it with
+`bash .offload-goal-driver.sh`, and keep the publish wrapper around it. It expects `${task}` from
+the enclosing script and handles the whole lifecycle — initialize, `thread/start`,
+`thread/goal/set`, `thread/resume`, then react only to `thread/goal/updated`:
 
-Keep the publish wrapper around the whole client so the worktree state still comes back.
+```bash
+coproc CODEX { codex app-server; }
+send() { printf '%s\n' "$1" >&"${CODEX[1]}"; }
+cfg=$(jq -cn --arg cwd "$PWD" \
+  '{cwd:$cwd,model:"gpt-5.5",approvalPolicy:"never",sandbox:"danger-full-access"}')
+send '{"id":0,"method":"initialize","params":{"clientInfo":{"name":"offload","version":"1.0.0"}}}'
+send '{"method":"initialized","params":{}}'
+send "$(jq -cn --argjson cfg "$cfg" '{id:1,method:"thread/start",params:$cfg}')"
+thread=""
+while IFS= read -r line <&"${CODEX[0]}"; do
+  if [ -z "$thread" ]; then
+    thread=$(jq -r '.result.thread.id // empty' 2>/dev/null <<<"$line")
+    [ -n "$thread" ] && send "$(jq -cn --arg t "$thread" --arg o "$task" \
+      '{id:2,method:"thread/goal/set",params:{threadId:$t,objective:$o,status:"active"}}')"
+    continue
+  fi
+  if jq -e 'select(.id==2 and .result)' >/dev/null 2>&1 <<<"$line"; then
+    send "$(jq -cn --argjson cfg "$cfg" --arg t "$thread" \
+      '{id:3,method:"thread/resume",params:($cfg+{threadId:$t})}')"
+    continue
+  fi
+  status=$(jq -r 'select(.method=="thread/goal/updated") | .params.goal.status // empty' 2>/dev/null <<<"$line")
+  case "$status" in
+    complete) exit 0 ;;
+    blocked|budgetLimited|usageLimited|paused) echo "goal ended: $status" >&2; exit 1 ;;
+  esac
+done
+echo "app-server exited without a terminal goal status" >&2
+exit 1
+```
+
+The thread must be persisted (not ephemeral) and idle when the goal is set; the driver satisfies
+both by starting its own thread. `jq` must be on the target's `PATH` (it is on the provisioned
+container).
 
 ## Choosing a harness
 
@@ -89,11 +136,3 @@ Use the harness the user asked for, otherwise whichever one is configured on the
 are configured and the user has no preference: Claude Code is the simplest goal run (one CLI
 invocation), and `codex exec` is the simplest bounded run. Say which harness was used when
 reporting back.
-
-## Dispatching
-
-Combine the pieces and hand the whole wrapped command to `offloader`:
-
-```bash
-<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc '<publish-wrapped harness command>'
-```
