@@ -7,12 +7,13 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` is a sync engine between computers. It keeps a second machine
+`/offload` lets coding agents continue long-running tasks on another machine.
+
+Underneath, it is a sync engine between computers: it keeps the other machine
 aligned with your own — the same project, the same development environment,
 the same accounts and agent logins — so that either machine can pick up the
-same task and carry it to completion.
-
-That alignment is what makes hand-offs dependable. Ask your coding agent:
+same task and carry it to completion. That alignment is what makes hand-offs
+dependable. Ask your coding agent:
 
 ```text
 /offload look through leads.csv, email the 500 best matches about our invoice
