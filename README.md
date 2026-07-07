@@ -7,9 +7,12 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` lets coding agents continue long-running tasks on another machine.
+`/offload` is a sync engine between computers. It keeps a second machine
+aligned with your own — the same project, the same development environment,
+the same accounts and agent logins — so that either machine can pick up the
+same task and carry it to completion.
 
-You may, for example:
+That alignment is what makes hand-offs dependable. Ask your coding agent:
 
 ```text
 /offload look through leads.csv, email the 500 best matches about our invoice
@@ -17,15 +20,19 @@ cleanup service between 9am and 5pm, track who replies and what they ask,
 and stop Wednesday with a short review summary and recommended next steps
 ```
 
-The agent sends your current project state to another machine, runs the task
-there, and saves any changes on a new branch. You can use any machine you can
-access, or `/offload` can easily dispatch the job to a cloud instance on
-[Fly](https://fly.io), similar to Cursor Cloud Agents.
+The agent pushes your project's current state to the other machine, the task
+runs there inside a faithful rebuild of your environment, and everything it
+produces comes back as an ordinary branch in your repository.
 
-The run can continue even if your laptop sleeps or disconnects. It can send
-status updates, expose remote `localhost:<port>` dev servers through
-authenticated public URLs, and use the official Claude Code or Codex remote
-controls to check in or steer it.
+The other machine can be any computer you can reach over SSH or Tailscale, or
+`/offload` can dispatch the job to a cloud instance on [Fly](https://fly.io).
+Hosted products like Cursor Cloud Agents lend you their machine; `/offload`
+turns a machine you already control into an interchangeable copy of your own.
+
+Because the run lives on that machine, it survives your laptop sleeping or
+disconnecting. While it works, it can send status updates, expose its
+`localhost:<port>` dev servers through authenticated public URLs, and stay
+steerable through the official Claude Code and Codex remote controls.
 
 ## Quick Start
 
@@ -44,25 +51,36 @@ Pass options after `bash -s --`, for example `--yes` to skip the prompt or
 
 This software is distributed with an agent skill, which serves as complete
 documentation. I suggest that you install the skill, then ask an LLM about
-its usage, etc. Alternatively, you may read the skill text yourself, starting
-with [this](./packages/offload/skills/offload/SKILL.md).
+its usage. Alternatively, you may read the skill text yourself, starting with
+[this](./packages/offload/skills/offload/SKILL.md).
 
-## How It Works (Technical)
+## What Stays In Sync
 
-`/offload` ships with a zero-install, rootless way to run the Nix package
-manager, and the skill helps manage the work of making your project runnable as
-a Nix flake. That lets the repo define the project environment the remote
-machine needs in order to work with it correctly.
+Three things must match before another computer can continue your work.
+`/offload` keeps all three aligned.
 
-The next part is the remote target: a container designed for work, with the
-right tooling installed, runtime Nix builds, persistent state, and a way to
-expose dev servers running on its own `localhost:<port>` through authenticated
-public URLs. The skill includes instructions for deploying that container on Fly.
+**The project.** `offloader` pushes your repository's current state to a
+dedicated run branch, and the remote machine checks it out into a fresh
+worktree. Whatever the run produces is committed and pushed back on that same
+branch, so results arrive the way a collaborator's work would: as a branch
+you can review and merge.
 
-The rest is integration polish, like checking and seeding GitHub credentials,
-git identity, repo state, and coding-agent login state for tools like Codex and
-Claude Code. The goal is simple: run the same project somewhere else and return
-the result as a normal branch.
+**The environment.** Your repository's Nix flake defines its toolchain, and
+the remote machine rebuilds that toolchain exactly — same dependencies, same
+versions, same behavior. `/offload` ships a zero-install, rootless way to run
+the Nix package manager, and the skill helps make your project runnable as a
+flake if it isn't already.
+
+**The credentials.** `offloader-configurator` checks and seeds the account
+state the remote machine needs: GitHub access, git identity, and login state
+for coding agents such as Claude Code and Codex. The remote machine can
+fetch, push, and run the same assistants you run locally.
+
+The default remote target is a container built for this arrangement: the
+right tooling installed, runtime Nix builds, persistent state between runs,
+and a way to expose dev servers on its own `localhost:<port>` through
+authenticated public URLs. The skill includes instructions for deploying that
+container on Fly.
 
 ### Optional: Hermes Agent Integration With Telegram
 
