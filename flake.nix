@@ -36,10 +36,6 @@
 
       packagesWithSkills = [
         {
-          name = "boondoggler";
-          skillsPath = ./packages/boondoggler/skills;
-        }
-        {
           name = "offloader";
           skillsPath = ./packages/offloader/skills;
         }
@@ -81,7 +77,6 @@
       packages = forAllSystems (
         pkgs: unstablePkgs:
         {
-          boondoggler = pkgs.callPackage ./packages/boondoggler { };
           offloader = pkgs.callPackage ./packages/offloader { };
           offloader-configurator = pkgs.callPackage ./packages/offloader-configurator { };
           offloader-container = import ./packages/offloader-container/nix {

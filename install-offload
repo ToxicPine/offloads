@@ -149,7 +149,7 @@ retry() {
 
 repo='ToxicPine/offloads'
 ref="${OFFLOAD_REF:-master}"
-skills=(offload offloader offloader-configurator boondoggler)
+skills=(offload offloader offloader-configurator)
 
 canonical="${AGENTS_HOME:-${HOME}/.agents}/skills"
 
