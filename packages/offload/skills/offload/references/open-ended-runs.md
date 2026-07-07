@@ -17,8 +17,8 @@ matters.
 
 ## Composing the remote command safely
 
-`offloader` base64-encodes the command, so it arrives on the target byte-for-byte; the only quoting
-hazard is local, while building the string. Never inline the task text into a single-quoted command
+The command string reaches the target byte-for-byte, so the only quoting hazard is local, while
+building it. Never inline the task text into a single-quoted command
 string — an apostrophe in the task breaks it. Build the script with quoted heredocs instead, then
 pass the variable as one argument. This is the whole shape, here with Claude Code as the harness
 (`skill_dir` is the `<skill-dir>` this skill resolves):
@@ -129,9 +129,8 @@ git push -u origin HEAD
 ```
 
 The driver itself sets the goal, kicks the first turn, then reacts only to status signals —
-`thread/goal/updated` notifications plus a `thread/goal/get` poll after each completed turn, the
-same belt-and-braces the retired boondoggler tool used. Any error response is terminal, so a
-rejected request fails the run instead of hanging it:
+`thread/goal/updated` notifications plus a `thread/goal/get` poll after each completed turn. Any
+error response is terminal, so a rejected request fails the run instead of hanging it:
 
 ```bash
 rpc_dir=$(mktemp -d)
