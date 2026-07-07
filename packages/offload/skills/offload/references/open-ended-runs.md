@@ -51,8 +51,10 @@ claude -p --permission-mode bypassPermissions \
 
 ## Codex
 
-Codex has no CLI goal command; its `/goal` exists only in the interactive TUI. Headless Codex is
-`codex exec`:
+Codex has no CLI goal command; its `/goal` exists only in the interactive TUI. **Default to
+`codex exec`; use the app-server goal API below only when the user asks for a run measured in hours
+or explicitly wants goal semantics (persisted objective, automatic continuation, budget tracking).**
+Headless Codex is `codex exec`:
 
 ```bash
 codex exec --sandbox danger-full-access '<task>'
@@ -65,10 +67,8 @@ codex exec --sandbox danger-full-access '<task>'
 
 ### Codex goal runs (app-server)
 
-Codex's persisted-goal machinery (objective storage, automatic continuation, budget tracking) is
-exposed only through the `codex app-server` JSON-RPC API. Use it instead of `codex exec` only when
-the user explicitly wants Codex goal semantics; it means scripting a client. Speak newline-delimited
-JSON over stdio:
+Codex's persisted-goal machinery is exposed only through the `codex app-server` JSON-RPC API, and
+using it means scripting a small client. Speak newline-delimited JSON over stdio:
 
 1. Send `initialize` (any `clientInfo`), then the `initialized` notification.
 2. Send `thread/start` with `{cwd, model, approvalPolicy: "never", sandbox: "danger-full-access"}`.
