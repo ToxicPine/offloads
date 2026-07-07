@@ -75,12 +75,13 @@ JSON over stdio:
 3. Send `thread/goal/set` with `{threadId, objective, status: "active"}`. The thread must be
    persisted (not ephemeral) and idle.
 4. Send `thread/resume` with the same config plus `threadId` to kick the first turn.
-5. Watch `thread/goal/updated` notifications: `complete` means success; `blocked`, `budgetLimited`,
-   and `usageLimited` mean the run stopped needing intervention; a `failed` turn ends the run.
+5. Drive the run off the goal status alone, in the script (`jq`), never by reading the run's
+   conversation: match `thread/goal/updated` notifications (or poll `thread/goal/get`) and discard
+   every other event. The event stream carries the whole conversation, which is far too heavy to
+   feed to a model. `complete` means success; `blocked`, `budgetLimited`, and `usageLimited` mean
+   the run stopped needing intervention; a `failed` turn ends the run.
 
-The beta `openai-codex` Python SDK (in the Codex repo under `sdk/python`) wraps the same calls as
-`start_goal_operation` when a small script is easier than raw JSON-RPC. Either way, keep the publish
-wrapper around the whole client so the worktree state still comes back.
+Keep the publish wrapper around the whole client so the worktree state still comes back.
 
 ## Choosing a harness
 
