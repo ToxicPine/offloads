@@ -49,6 +49,10 @@ offloader --command "${run_cmd}"
 
 Dispatch plainly (no wrapper) only for short commands watched live, where stdout and the exit status should flow back through the transport.
 
+## Concurrent Dispatches
+
+Dispatches running at the same time — including from different agent sessions on the same local machine — do not conflict: each run gets its own branch and worktree, keyed by run id, and the shared bare repo handles concurrent fetches. Let offloader generate the run id. If you set `OFFLOADER_RUN_ID` (or `OFFLOADER_RUN_BRANCH`, `OFFLOADER_WORKTREE_NAME`), keep it unique across live runs and lowercase — branch and directory names derive from it, and ids differing only by case collide on case-insensitive filesystems.
+
 ## Required Context
 
 Before launching, confirm these are true:

@@ -5,17 +5,15 @@ no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so
 result, and dispatch it through `offloader` like any other command. The harness must already be
 configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
 
-Every open-ended run needs three things:
+The one thing to get right when composing is **a goal with a verifiable stopping condition**:
+phrase the task so the harness can tell when it is done, e.g. "…; done when `npm test` passes and
+the README documents the new flag." Vague goals produce runs that stop early or never stop. Also
+tell the harness, in the prompt, to commit its work as it goes.
 
-- **A goal with a verifiable stopping condition.** Phrase the task so the harness can tell when it
-  is done, e.g. "…; done when `npm test` passes and the README documents the new flag." Vague goals
-  produce runs that stop early or never stop.
-- **A publish step.** `offloader` pushes work in but never pulls results back. Tell the harness in
-  the prompt to commit its work as it goes, and wrap the invocation so worktree state is committed
-  and pushed on the run branch whether the run succeeds or fails.
-- **No interactive prompts.** Use the harness's non-interactive mode with approvals disabled. The
-  target is a disposable container, so that is the expected posture there; do not disable approvals
-  this way on a machine that matters.
+The rest is already in the shape below: the wrapper commits and pushes the result because
+`offloader` never pulls anything back, and the harness runs non-interactively with approvals
+disabled — the expected posture on a disposable target, and not one to repeat on a machine that
+matters.
 
 ## Composing the remote command safely
 
@@ -215,23 +213,15 @@ The thread must be persisted (not ephemeral) and idle when the goal is set; the 
 both by starting its own thread. The driver needs `jq` on the target's `PATH` (it is on the
 provisioned container).
 
-## Simultaneous offloads
+## Simultaneous runs
 
-Concurrent runs are isolated by construction — each dispatch gets its own run branch and worktree —
-so the rules are about not defeating that isolation:
-
-- Let `offloader` generate the run id. If you must set `OFFLOADER_RUN_ID`, keep it lowercase and
-  unique: the run branch (`offloader/<run-id>`) and the worktree directory name both derive from
-  it, generated ids are lowercase, and two ids differing only by case collide wherever the
-  filesystem is case-insensitive.
-- Never give two simultaneous runs the same `OFFLOADER_RUN_ID`, `OFFLOADER_RUN_BRANCH`, or
-  `OFFLOADER_WORKTREE_NAME`.
-- `codex exec resume --last` picks the most recent session **for its working directory**, so run it
-  from that run's worktree; from anywhere else (or with `--all`) it can resume a different run's
-  session. Claude Code sessions are likewise scoped to the directory they ran in.
-- The wrapper and driver write nothing shared: the driver file is a fresh `mktemp` path,
-  `<worktree>.run.sh` and `<worktree>.log` derive from each run's own worktree path, and all git
-  activity happens on the run's own branch in its own worktree.
+Concurrent dispatches are isolated by the offloader layout — own branch, own worktree per run (see
+the `offloader` skill's Concurrent Dispatches section). At the harness level the rule is session
+scoping: `codex exec resume --last` picks the most recent session **for its working directory**, so
+run it from that run's worktree — from anywhere else (or with `--all`) it can resume a different
+run's session. Claude Code sessions are likewise scoped to the directory they ran in. The wrapper
+and driver write nothing shared: the driver file is a fresh `mktemp` path, and `<worktree>.run.sh`
+and `<worktree>.log` derive from each run's own worktree path.
 
 ## Choosing a harness
 
