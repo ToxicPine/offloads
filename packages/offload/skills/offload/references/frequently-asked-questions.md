@@ -81,8 +81,8 @@ A hand-rolled box needs the pieces the provisioned image normally supplies:
 - Repo storage. By default `offloader` keeps repos under `~/.remote-work`, with `.bare` beside
   branch-named worktree directories.
 - Git credentials that can read and write the user's repos, configured through `offloader-configurator`.
-- For open-ended `boondoggler` work, `boondoggler` installed plus the chosen assistant configured
-  through `offloader-configurator`.
+- For open-ended work, the chosen coding assistant's CLI (`claude` or `codex`) installed and
+  configured through `offloader-configurator`.
 - For Telegram progress pings, `vusperize` installed plus the setup in `setup-telegram.md`.
 - For web URLs like `https://<app>.fly.dev/<port>/`, a proxy equivalent to the provisioned
   setup.
@@ -92,11 +92,12 @@ persistent home storage and GitHub access.
 
 ## "How do I check on the work itself — progress, logs, whether it's done?"
 
-That is separate from viewing a web page. Other skills handle it: `offloader-target` for the state of
-a handed-off run on the machine, and `boondoggler-runs` for an open-ended coding-assistant run's
-progress and completion.
+That is separate from viewing a web page. Another skill handles it: `offloader-target` covers the
+state of a handed-off run on the machine, including an open-ended coding-assistant run's progress
+and completion. Detached open-ended runs keep their output in `<worktree>.log` on the target, and
+the finished/failed state arrives as a status commit on the run branch.
 
-Those are target-side skills. If the user is already talking to an agent on the machine, for
+That is a target-side skill. If the user is already talking to an agent on the machine, for
 example through Telegram, that agent should use them directly. If you only have the local machine,
 use the saved `OFFLOADER_TRANSPORT` to ask the target-side agent or configured assistant to answer
 from the target and print the result locally. Finished code still comes back as the branch this skill

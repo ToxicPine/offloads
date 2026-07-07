@@ -63,7 +63,7 @@ When working locally in the source repo, these commands often identify the Offlo
 
 ```bash
 git branch --list 'offloader/*'
-git log --all --decorate --oneline --grep='Codex Goal Worktree State' -20
+git log --all --decorate --oneline --grep='Worktree State: status=' -20
 git remote -v
 ```
 
@@ -74,6 +74,47 @@ offloader -- npm run dev
 offloader --command 'npm run test'
 ```
 
-Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. It does not create a standard log file or pidfile. If logs are not present as files, say so and report process state, worktree status, last commit, and recent file activity instead.
+Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. Detached runs leave their output at `<worktree>.log`, and open-ended ones also leave `<worktree>.run.sh` (what was launched). Attached runs leave no log file of their own; for those, say so and report process state, worktree status, last commit, and recent file activity instead.
 
-If the command is a Boondoggler run and the `boondoggler-runs` skill is available, use that skill for Boondoggler-specific activity and completion signals.
+## Open-Ended Harness Runs
+
+Open-ended dispatches run a coding harness CLI in the worktree, usually `claude -p "/goal ..."` or `codex exec ...`, wrapped so worktree state is committed and pushed when the run ends. They are normally detached with `setsid`, so expect no parent session. Read progress and the launched script directly:
+
+```bash
+worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
+tail -n 50 "${worktree}.log"
+cat "${worktree}.run.sh"
+```
+
+Check whether a run is still alive:
+
+```bash
+pgrep -fl 'claude|codex' || true
+```
+
+Several runs can be live at once, and the command line rarely names the worktree. Attribute a harness process to a specific run by its working directory (on macOS targets, which have no `/proc`, use `lsof -a -p "${pid}" -d cwd` in place of the `readlink`):
+
+```bash
+while IFS= read -r pid; do
+  cwd=$(readlink "/proc/${pid}/cwd" 2>/dev/null) || cwd=""
+  case "${cwd}" in
+    "${worktree}"|"${worktree}"/*) ps -o pid,etime,command -p "${pid}" ;;
+    *) : ;;
+  esac
+done < <(pgrep -f 'claude|codex' || true)
+```
+
+The wrapper's completion signal is a commit whose subject matches:
+
+```text
+Offload Run Worktree State: status=<status>
+```
+
+`status=complete` means the harness finished its goal; `status=failed` means it exited early and the commit holds partial work. Older runs used the subject prefix `Codex Goal Worktree State`. Find the latest outcome with:
+
+```bash
+git -C "${worktree}" log --decorate --oneline --grep='Worktree State: status=' -20
+git -C "${worktree}" log -1 --format=fuller
+```
+
+Harness runs track state through git commits, the run log, and live processes — no pidfiles or status files. Report what those signals show.
