@@ -193,8 +193,9 @@ when this skill provisions the machine.
 
 **Hand it off.** Whatever is dispatched runs in the foreground of the transport session and dies
 with it if the connection drops. Detach anything that should outlive the connection — that is most
-offloads, fixed command or open-ended alike — using the `setsid` pattern in
-`references/open-ended-runs.md`; dispatch plainly only for short commands watched live.
+offloads, fixed command or open-ended alike — using the `setsid` pattern in the `offloader` skill's
+Persistence section; dispatch plainly only for short commands watched live. The open-ended
+composition below already includes the detach.
 
 - One exact command: `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <command>`. This runs on the
   remote branch. To return changes, the command must commit and push them itself.

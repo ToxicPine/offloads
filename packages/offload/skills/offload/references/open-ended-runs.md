@@ -48,7 +48,9 @@ REMOTE
 ```
 
 Two layers, one job each: the `RUN` script is the run itself — task, harness, publish wrapper —
-and the `REMOTE` script only writes it down and launches it. Rules that make this work first time:
+and the `REMOTE` script only writes it down and launches it detached, so the run survives
+disconnects (the mechanism, and the attached alternative for short watched runs, are in the
+`offloader` skill's Persistence section). Rules that make this work first time:
 
 - Keep every heredoc delimiter quoted (`<<'REMOTE'`) and distinct, and make sure no line of the
   task text equals a delimiter.
@@ -58,29 +60,9 @@ and the `REMOTE` script only writes it down and launches it. Rules that make thi
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
-## Launching: detached by default
-
-The transports run commands in the foreground of the login session, and that session dies when the
-user's machine sleeps or drops. `setsid` is the whole persistence mechanism: it starts the run in
-its own session, out of reach of the hangup that kills the login session, with its output on disk.
-Detach by default — it is the point of offloading, and the same line detaches any dispatched
-command, not just harness runs. The launch leaves two files beside the worktree
-(derived from `${PWD}`, so per-run unique and never swept into a commit):
-
-- `<worktree>.run.sh` — exactly what was launched, for inspection.
-- `<worktree>.log` — the run's combined output, for progress checks.
-
-With a detached run the dispatch returns immediately and its exit status only confirms the launch.
-The outcome arrives as the status commit on the run branch, and progress lives in the log —
-`offloader-target` reads both.
-
-**Attach only when the user is actively watching a short, bounded run** and wants output and exit
-status inline: make the `REMOTE` script the `RUN` content itself, dropping the `cat`/`setsid`
-lines. Then the final `[[ "${status}" == complete ]]` propagates failure back through the transport
-to the local caller — and the run dies with the connection, which is the trade being made.
-
-`setsid` comes with util-linux and is on the provisioned container. On targets without it (macOS
-has none), `nohup` in its place is the same line with the same survival behavior.
+The dispatch returns as soon as the run starts, echoing the pid and log path. The outcome arrives
+as the status commit on the run branch; progress lives in `<worktree>.log`, and `<worktree>.run.sh`
+records what was launched — both beside the worktree, per-run unique, never swept into a commit.
 
 ## Claude Code
 
