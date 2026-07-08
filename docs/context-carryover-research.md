@@ -8,19 +8,31 @@ openai/codex @ `cca16a10`, 2026-07-06), and cross-industry prior art.
 
 ## 1. The gap in the current skill text
 
-Nothing in `offload`, `offloader`, `boondoggler`, or the reference docs tells the
-dispatching agent that the remote assistant starts with **zero conversation
-context**. The open-ended path is:
+Nothing in `offload`, `offloader`, or the reference docs tells the dispatching
+agent that the remote assistant starts with **zero conversation context**.
+
+*(Updated for the post-boondoggler architecture, master @ `890ccd9`.)* The
+open-ended path is now composed by the dispatching agent itself
+(`references/open-ended-runs.md`): a heredoc-built wrapper script that runs the
+harness CLI directly on the target —
 
 ```bash
-printf "%s" "<task>" | nix run github:ToxicPine/offloads#boondoggler
+claude -p --permission-mode bypassPermissions "/goal ${task}"   # or
+codex exec --sandbox danger-full-access "${task}"
 ```
 
-Whatever the local agent happens to write as `<task>` is the *entire* context the
-remote Codex/Claude instance ever sees. The `offload` skill's `argument-hint`
-("plain description of the work to hand off") if anything nudges toward a thin
-prompt. The only context the skills do carry deliberately is credential/repo
-state (`offloader-configurator`), never conversational state.
+— where `${task}` is a quoted heredoc. Whatever the local agent writes into
+that heredoc is the *entire* context the remote harness ever sees.
+`open-ended-runs.md` is explicit about goal *quality* ("a goal with a
+verifiable stopping condition") but silent on conversation carryover; the
+`offload` skill's `argument-hint` ("plain description of the work to hand
+off") if anything nudges toward a thin prompt. The only context the skills do
+carry deliberately is credential/repo state (`offloader-configurator`), never
+conversational state. On the plus side, the heredoc composition rules make
+arbitrary-length briefs quoting-safe by construction — the natural insertion
+point for a carryover requirement is `open-ended-runs.md`'s "the one thing to
+get right" paragraph, which should become two things: a verifiable stopping
+condition *and* a handoff brief.
 
 This matters because the remote model is a blank slate plus a prompt string —
 the same situation Anthropic documents for its own subagents ("Subagents receive
@@ -166,8 +178,8 @@ Details and gotchas:
   `ThreadCompactStartParams` is `{threadId}` only). The customization channel
   is `compact_prompt`, which replaces the entire summarization prompt and
   applies to both manual and auto compaction on the local path. It is settable
-  per-thread via `thread/start`'s `config` map — which boondoggler's
-  `BOONDOGGLE_THREAD_CONFIG_JSON` can already carry. **Major gotcha:** on
+  per-thread via `thread/start`'s `config` map — one extra key in the `cfg`
+  object of the app-server driver in `open-ended-runs.md`. **Major gotcha:** on
   OpenAI and Azure-responses providers, compaction is performed server-side
   (`compact_remote*.rs`) and the request carries no prompt, so `compact_prompt`
   is dead on the default provider. Any /offload use must not assume the
@@ -280,8 +292,10 @@ schemas). Gate behind an explicit opt-in.**
   no cwd constraint (cwd filtering only affects `--last` pickers), and
   `thread/resume` accepts a `cwd` override.
 - Simpler still: `thread/resume {path: <rollout file>}` and `thread/fork {path}`
-  resume from an arbitrary file location (experimental-gated; boondoggler
-  already sends `experimentalApi: true`).
+  resume from an arbitrary file location. These are experimental-gated: the
+  app-server driver in `open-ended-runs.md` would need
+  `capabilities: {experimentalApi: true}` added to its `initialize` params
+  (the driver currently sends only `clientInfo`).
 - **Cross-harness transplant is a first-class pattern inside Codex itself**:
   `codex-rs/external-agent-sessions/` imports Claude Code `~/.claude/projects`
   transcripts by converting messages into `RolloutItem::ResponseItem`s. That
@@ -299,19 +313,33 @@ schemas). Gate behind an explicit opt-in.**
 
 ## 5. Strategy D — Seed the remote thread / escape hatch to the full transcript
 
-**Verdict: the best-fit boondoggler extension and the most novel pattern found.**
+**Verdict: a direct extension of the skill's own app-server driver, and the
+most novel pattern found.** *(Post-boondoggler: the Codex goal path is now an
+inline bash JSON-RPC driver in `references/open-ended-runs.md` — the skill
+composes the protocol messages itself, so seeding is a matter of documenting
+one or two extra `send` lines rather than patching a separate tool.)*
 
-- boondoggler drives `codex app-server` and already initializes with
-  `experimentalApi: true`, so today it could:
-  1. **Stable, minimal**: after `thread/start`, call `thread/inject_items`
-     (non-experimental, documented) with one Responses-API `message` item
-     containing the brief, then `thread/goal/set` as today. Or pass the brief
-     as `developerInstructions` on `thread/start`.
+- For the simple paths, the brief needs no protocol work at all: it travels
+  inside the `${task}` heredoc for both
+  `claude -p ... "/goal ${task}"` and `codex exec ... "${task}"` — the heredoc
+  composition makes arbitrary brief text quoting-safe.
+- For the Codex app-server goal driver, richer seeding channels (in order):
+  1. **Stable, minimal**: after `thread/start`, `send` a `thread/inject_items`
+     request (non-experimental, documented in the app-server README) with one
+     Responses-API `message` item containing the brief, then `thread/goal/set`
+     as the driver already does. Or add `developerInstructions` to the
+     driver's `cfg` object.
   2. **Maximal**: `thread/resume {history: [...ResponseItems]}` — seed the whole
      prior conversation without any disk file. This `[UNSTABLE] FOR CODEX CLOUD`
      param is the exact mechanism OpenAI's own local↔cloud handoff uses.
+     Requires `capabilities: {experimentalApi: true}` on `initialize`.
   3. Avoid `turn/start.additionalContext` for briefs — values are
      middle-truncated to ~1,000 tokens.
+- On the Claude Code side, the plain-CLI architecture opens a transplant
+  variant with no protocol at all: the RUN wrapper could place a transported
+  session JSONL into the remote's munged project dir for the worktree and run
+  `claude -p --resume <id> --fork-session "/goal ${task}"` — the goal turn
+  then starts with the full prior conversation natively loaded.
 - **Escape hatch pattern** (opencode-handoff plugin; Hermes `session_search`):
   ship the brief *plus* a queryable copy of the full transcript, and tell the
   remote agent where it is. For /offload, a live callback to the laptop is
@@ -386,20 +414,24 @@ are filtered as partial defense).
 ## 8. Recommended tiers
 
 1. **Tier 0 — skill text only (no code).** Add a "Carry the conversation over"
-   section to the `offload` skill: state explicitly that the remote assistant
-   starts with zero context, require the dispatching agent to compose a handoff
-   brief (checklist in §2) as the boondoggler prompt, and require surfacing
-   uncommitted local changes before dispatch. This alone closes most of the gap
-   because the dispatching agent already holds the conversation.
+   requirement to the `offload` skill and `references/open-ended-runs.md`:
+   state explicitly that the remote assistant starts with zero context, require
+   the dispatching agent to compose a handoff brief (checklist in §2) inside
+   the `${task}` heredoc alongside the verifiable stopping condition, and
+   require surfacing uncommitted local changes before dispatch. This alone
+   closes most of the gap because the dispatching agent already holds the
+   conversation.
 2. **Tier 1 — automated brief generation.** When the local harness is Claude
    Code, offer the fork-resume-summarize recipe (§3) so the brief is generated
    from the real transcript rather than the agent's recollection; fall back to
    compaction-borrowing where a compact summary already exists.
 3. **Tier 2 — transcript escape hatch.** Optionally ship a sanitized transcript
    to the remote target and reference it in the brief.
-4. **Tier 3 — native session transplant.** Claude JSONL copy + `--resume
-   --fork-session`, or Codex `thread/resume {history|path}` via boondoggler.
-   Highest fidelity, unstable surfaces, secrets risk — explicit opt-in only.
+4. **Tier 3 — native session transplant.** Claude JSONL copy into the remote
+   worktree's munged project dir + `--resume --fork-session "/goal ..."`, or
+   Codex `thread/resume {history|path}` in the app-server driver. Highest
+   fidelity, unstable surfaces, secrets risk — explicit opt-in only. Entire
+   (§6) is the productized form of this tier when its preconditions are met.
 
 ## Open unknowns
 
@@ -417,8 +449,8 @@ are filtered as partial defense).
   token-budget path and `thread/start` config-map mapping still need
   inspection), plus whether an informal pre-compact steering message is
   visible to the compactor.
-- Codex `thread/resume {history}` interaction with boondoggler's
-  `thread/goal/set` (source-verified, not executed end-to-end).
+- Codex `thread/resume {history}` interaction with `thread/goal/set` in the
+  skill's app-server driver (source-verified, not executed end-to-end).
 - Whether gpt-5.5 performs better with a seeded full transcript or a compact
   brief — empirical product question; the brief + `thread/inject_items` is the
   safest first move.
