@@ -4,7 +4,7 @@ description: Use when the user wants to run a long or resource-heavy task on ano
 argument-hint: <the work to hand off, plus any context the remote agent will need>
 ---
 
-# Offloader
+# Offload
 
 Help the user offload work to another computer, or set up and configure the target computer. A
 correct offload preserves the local project's behavior: it rebuilds the same environment from the
@@ -23,13 +23,9 @@ using an online account, choosing between valid targets, or changing project con
 
 Keep the narration and explanation clear and direct. When describing setup, focus on what the user
 needs to do and what will happen, without introducing internal names, implementation details, or
-technical jargon such as Fly Machines, Nix, `offloader`, Nixie, or transport adapters. Use those terms
-only if the user requests more detail, demonstrates familiarity, when providing exact command lines,
-or when relaying an error that includes them.
-
-Do not expose setup probes in user-facing narration. For example, do not say "`OFFLOADER_TRANSPORT` is
-unset" or "the flake has no `x-offload` marker" unless the user asks for implementation details.
-Say that no saved remote computer is configured for this project yet.
+technical jargon. Use technical terms only if the user requests more detail, demonstrates
+familiarity, when providing exact command lines, or when relaying an error that includes them. The
+same goes for setup probes: narrate what the probe means for the user, not what was probed.
 
 When setup is needed, keep the user oriented around the visible phases:
 
@@ -37,7 +33,8 @@ When setup is needed, keep the user oriented around the visible phases:
 - Add the required secrets before starting it.
 - Save the local connection details.
 - Connect the remote computer to GitHub so it can fetch and push branches.
-- Run a tiny end-to-end check, then run the requested work.
+- Send a tiny test job to confirm the remote computer can receive work and push results back,
+  then run the requested work.
 
 Do not describe a raw connection check as "the transport works" to the user. Say the remote computer
 is reachable, then immediately explain the next visible requirement.
@@ -51,47 +48,20 @@ When explaining access to web pages or dev servers, say that the remote computer
 address and Nestail auth protects the shareable links. Avoid implying that the user needs to
 understand Fly internals or configure networking by hand.
 
-## Supporting Skills
-
-Use supporting skills for specialized work: `offloader` for the hand-off and `offloader-configurator` for remote
-GitHub and assistant setup. Provision and manage the target with the official Fly.io CLI (`fly`).
-If a skill is missing, try `npx skills --help` and `npx skills add <repo> --list`; `offloader` and
-`offloader-configurator` are in `ToxicPine/offloads`.
-
-## Tools
-
-Two custom commands are involved, plus the coding harness CLIs already on the target. Run
-`offloader` locally for the actual hand-off; it starts the remote work.
-
-- **offloader** runs locally, inside the user's git project. It pushes the project's current state to
-  the remote target as branch `offloader/<run-id>`, then starts the remote work. It does not pull
-  results back by itself, so every dispatched command must push its own changes.
-- **Coding harness CLIs** (`claude`, `codex`) run on the remote target, inside the copied project,
-  for open-ended tasks such as "make this feature work" rather than one exact command. Compose the
-  harness invocation and its publish wrapper from `references/open-ended-runs.md`. Configure the
-  assistant through `offloader-configurator`; see `references/assistants-on-the-machine.md`.
-- **vusperize** runs on the remote target and wraps the work so it can send live progress pings,
-  for example to Telegram. Use it for long jobs or when the user asks for progress updates. If the
-  user wants Telegram pings and they are not set up yet, see `references/setup-telegram.md`.
-
-`offloader` reaches the target through a transport (see "Find the target") and starts the requested
-command there. The Fly target keeps its files between restarts, rebuilds project dependencies
-fresh each run, and has the remote-side tools installed. If no target exists, set one up with
-`references/provision-remote-machine.md`. Otherwise assume one exists.
-
 ## What An Offload Is
 
 An offload is three moves: push, run, push back. `offloader` pushes the local `HEAD` to the base
-branch and a fresh run branch `offloader/<run-id>`, reaches the target through the transport,
-materializes the run branch as a worktree there, and runs the command inside it. Everything to
-check follows from that shape:
+branch and a fresh run branch `offloader/<run-id>` (the base branch gives the run branch its merge
+base), reaches the target through a saved transport command, materializes the run branch as a
+worktree there, and runs the command inside it. Everything to check follows from that shape:
 
 - **Only committed state travels.** `HEAD` is what gets pushed. If uncommitted changes matter to
   the task, surface them and offer to commit first.
 - **Nothing comes back on its own.** Results exist only as commits the remote command pushes to
   the run branch. A command that does not push has no result.
-- **The environment is rebuilt, not copied.** The target re-derives it from `flake.nix`. Anything
-  the flake cannot provide (tools, env vars, secrets) will not exist there.
+- **The environment is rebuilt, not copied.** The target does not inherit the local machine's
+  setup; it builds the project environment fresh from `flake.nix`. Any tool, env var, or secret
+  the flake does not provide will not exist there.
 - **The remote sees the repo and the command text, nothing else.** No shell state, no files
   outside the repo, none of this conversation. For open-ended runs the task text must carry the
   context the run needs; `references/open-ended-runs.md` covers what belongs in it.
@@ -99,12 +69,47 @@ check follows from that shape:
 When in doubt about remote state, one comparison settles it: the worktree's `git rev-parse HEAD`
 on the target (the open-ended wrapper logs it at run start) must equal the dispatched local `HEAD`.
 
+## Tools
+
+The system itself is two commands:
+
+- **offloader** runs locally, inside the user's git project, and does the hand-off: push the
+  project, start the remote work. Dispatch mechanics, the persistence pattern, and overrides are
+  in the `offloader` skill.
+- **offloader-configurator** checks and seeds the target's account state (GitHub, assistant auth)
+  over the same transport. It is how a machine becomes ready, not part of any run.
+
+Everything else is a choice of what to dispatch:
+
+- A fixed command runs as given.
+- An open-ended task ("make this feature work") dispatches a coding harness CLI (`claude`,
+  `codex`) already on the target. Choose the harness in this order: the one the user asked for;
+  the one this agent itself runs in, so the remote model is comparable, if it is configured on
+  the target; otherwise whichever is configured. Compose the invocation and its publish wrapper
+  from `references/open-ended-runs.md`; the assistant is configured once through
+  `offloader-configurator` (`references/assistants-on-the-machine.md`). When reporting back, name
+  the harness only if it differs from the one dispatching the run.
+
+If a supporting skill is missing, try `npx skills --help` and `npx skills add <repo> --list`;
+`offloader` and `offloader-configurator` are in `ToxicPine/offloads`.
+
 ## Running the hand-off
+
+The steps below are in execution order, and the path branches once, at the target:
+
+1. Set up the command prefix.
+2. Find the target. If none is saved, this is where the path forks: offer to set one up
+   (`references/provision-remote-machine.md`, with the user's consent), then rejoin here with a
+   saved transport.
+3. Check the project rebuilds on the target.
+4. Hand it off.
+5. Report back.
 
 **Use Nixie directly for local offload dependencies.** Resolve `<skill-dir>` as the directory
 containing this `SKILL.md`. The Nixie-generated wrapper is `<skill-dir>/scripts/nix`. It behaves like
 the `nix` command: when system Nix is installed it delegates to system Nix, and when Nix is missing
 it downloads and runs Nixie's static Nix in the user's cache. It is not a custom package launcher.
+Nixie, Nix, and `offloader` are internal names; keep them out of user-facing narration.
 
 The offload dependency environment is a small flake at `<skill-dir>/scripts/deps`. Use this command
 shape for local setup tools:
@@ -127,38 +132,52 @@ Examples:
 <skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <command>
 ```
 
-Offloading still works cleanly only when the target can rebuild the project environment from
-`flake.nix`. That keeps dependencies and behavior consistent after the work moves. On the target,
-prefer Nix-run invocations when commands are not already installed:
-`nix run github:ToxicPine/offloads#vusperize -- ...`.
+On the target, prefer Nix-run invocations when a command is not already installed:
+`nix run github:ToxicPine/offloads#<package> -- ...`.
 
-**Fly CLI auth must be ready before provisioning a new target.** Use
-`<offload-nix> fly auth whoami` to check,
-`<offload-nix> fly auth login` to log in, and
-`<offload-nix> fly --help` or the Fly docs when a command option needs
-confirmation.
+**Find the target.** `offloader` reaches the target through `OFFLOADER_TRANSPORT`: one saved
+command with the transport contract. Adapters ship for plain SSH (`offloader-ssh <host>`),
+Tailscale (`offloader-tailscale <host>`), and Fly
+(`offloader-fly --app <app> --machine <machine-id>`), all runnable under `<offload-nix>`. Any
+machine the user can reach this way is a valid target; Fly is only the default when this skill
+provisions the machine for the user. Transport adapters and Fly Machines are internal vocabulary
+too; to the user, all of this is the saved remote computer.
 
-**Fly targets must have Nestail auth enabled.** Before using a Fly target, ensure its app has
-`NESTAIL_AUTH_SECRET` set. Check with `<offload-nix> fly secrets list -a <app>`.
-If it is missing, generate a fresh secret with
-`<offload-nix> openssl rand -hex 32` and set it with
-`<offload-nix> fly secrets set -a <app> NESTAIL_AUTH_SECRET="$secret"`. Treat this
-as machine-level secret state; do not commit it, print it, or reuse a placeholder.
-
-**Authenticated Nestail links must be generated on the target.** The `nestail token ...`
-command needs the target's `NESTAIL_AUTH_SECRET`, so do not run it locally unless the local computer
-is the target. Use the saved `OFFLOADER_TRANSPORT` to run it remotely, or ask the Telegram
-conversational agent on the target to generate the link. For example:
-
-```bash
-printf '%s\n' 'nestail token 3000 /dashboard' | bash -c "$OFFLOADER_TRANSPORT"
-```
-
-If the remote does not have `nestail` on `PATH`, run the target-side equivalent that the machine
-provides, but keep the generation on the remote so the secret never leaves the machine.
+- Before deciding whether `OFFLOADER_TRANSPORT` is set, pull in the saved local transport file if it exists:
+  ```bash
+  if [ -z "${OFFLOADER_TRANSPORT:-}" ] && [ -r "$HOME/.offload-skill-transport" ]; then
+    . "$HOME/.offload-skill-transport"
+  fi
+  ```
+- If `OFFLOADER_TRANSPORT` is set, use it.
+- If `OFFLOADER_TRANSPORT` is not set, fail fast. Do not use `fly`, `flyctl`,
+  `offloader-fly`, or any provider-specific discovery command to search for a
+  possible target. Tell the user there is no saved remote computer configured for this
+  project, not that `OFFLOADER_TRANSPORT` is unset, and offer to help find an existing
+  machine or set one up before offloading.
+- Setting one up means renting a small server, from Fly.io by default, which costs money. If the
+  user agrees, follow `references/provision-remote-machine.md`; provisioning needs Fly CLI auth
+  first (`<offload-nix> fly auth whoami` to check, `<offload-nix> fly auth login` to log in). The
+  provisioned machine keeps its files between restarts, rebuilds project dependencies fresh each
+  run, and has the remote-side tools installed.
+- If the saved target is a Fly app, confirm Nestail auth is set up. Nestail is the machine's web
+  proxy: it exposes the target's `localhost:<port>` services as public URLs. `NESTAIL_AUTH_SECRET`
+  is the signing key that enables its auth gate: when set, a route is reachable only through
+  signed grant links generated on the machine; when unset, the routes are open to the internet.
+  Check with
+  `<offload-nix> fly secrets list -a <app>`; if the secret is missing, generate one with
+  `<offload-nix> openssl rand -hex 32` and set it with
+  `<offload-nix> fly secrets set -a <app> NESTAIL_AUTH_SECRET="$secret"`, telling the user this may
+  restart the machine. Treat it as machine-level secret state: do not commit it, print it, or
+  reuse a placeholder.
+- If the target exists but `offloader` cannot reach the repo or push results back, use
+  `offloader-configurator` to check and configure its GitHub access.
 
 **Check the flake offload marker before doing anything with the flake.** Use `nix flake show` (or
-`nix flake show --json`) to look for top-level `x-offload`. Treat it as a hint, not a guarantee:
+`nix flake show --json`) to look for top-level `x-offload`. It records what is already known about
+offloading this project, so you do not re-derive it every time. In user-facing narration, say
+offloading is not set up for this project yet rather than mentioning the marker. Treat it as a
+hint, not a guarantee:
 
 - `"configured"` means an offload worked at some point. Try it; if it breaks because setup drifted,
   move it back to `"untested"` while you re-check the setup, then restore `"configured"` after a
@@ -166,7 +185,8 @@ provides, but keep the generation on the remote so the secret never leaves the m
 - `"untested"` means setup was attempted and nothing obvious blocks it, but no successful offload is
   known yet.
 - `"none"` means there is a hard reason not to offload, or the user does not want offloading for this
-  project. Optionally add `x-offload-none-reason` with a few dense words.
+  project. Optionally add `x-offload-none-reason` with a few dense words. If it is already `"none"`,
+  stop and confirm with the user before continuing.
 
 When you become confident the flake will work for offloading, set `x-offload = "untested";`. After a
 successful offload, set `x-offload = "configured";`. If you find a real blocker, or the user
@@ -184,32 +204,10 @@ outputs = { self, nixpkgs, ... }: {
 **Check that the project rebuilds on the target.** Review `flake.nix` and any `.envrc`: will the
 rebuilt project have the dependencies and settings this task needs? This is a sanity check, not an
 audit. If setup is incomplete or there is no `flake.nix`, tell the user and offer to fix it first,
-usually by adding or extending a `devShell` and `.envrc`. `offloader` copies the whole project, so any
-secret the devShell cannot provide must not travel as plaintext. Offer to encrypt it with `age` or
-`sops-nix`. Ask before changing anything.
-
-**Find the target.** `offloader` reaches it through `OFFLOADER_TRANSPORT`, usually Fly:
-`<skill-dir>/scripts/nix develop <skill-dir>/scripts/deps -c offloader-fly --app <app> --machine <machine-id>`.
-Plain SSH and Tailscale transports are still valid for user-managed boxes, but Fly is the default
-when this skill provisions the machine.
-
-- Before deciding whether `OFFLOADER_TRANSPORT` is set, pull in the saved local transport  file if it exists:
-  ```bash
-  if [ -z "${OFFLOADER_TRANSPORT:-}" ] && [ -r "$HOME/.offload-skill-transport" ]; then
-    . "$HOME/.offload-skill-transport"
-  fi
-  ```
-- If `OFFLOADER_TRANSPORT` is set, use it.
-- If `OFFLOADER_TRANSPORT` is not set, fail fast. Do not use `fly`, `flyctl`,
-  `offloader-fly`, or any provider-specific discovery command to search for a
-  possible target. Tell the user there is no saved remote computer configured, and
-  offer to help find an existing machine or set one up before offloading.
-- For an existing Fly app, check `<offload-nix> fly secrets list -a <app>` and set a generated
-  `NESTAIL_AUTH_SECRET` if missing. Tell the user this may restart the Fly Machine.
-- If no target exists, tell the user setup means renting a small server from Fly.io, which costs
-  money. If they agree, follow `references/provision-remote-machine.md`.
-- If the target exists but `offloader` cannot reach the repo or push results back, use
-  `offloader-configurator` to check and configure its GitHub access.
+usually by adding or extending a `devShell` and `.envrc`. Only committed state travels, so a secret
+committed to the repo would travel as plaintext; offer to encrypt it with `age` or `sops-nix`. A
+secret outside the repo does not travel at all, so the devShell or the machine must provide it. Ask
+before changing anything.
 
 **Hand it off.** Whatever is dispatched runs in the foreground of the transport session and dies
 with it if the connection drops. Detach anything that should outlive the connection — that is most
@@ -227,8 +225,7 @@ composition below already includes the detach.
   (`references/assistants-on-the-machine.md`).
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
-`.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`. For long jobs or
-progress pings, wrap the command with `vusperize`, which runs alongside it on the remote target.
+`.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`.
 
 **Report back.** Tell the user which branch receives the work, which target ran it, and how to check
 progress later. For a detached open-ended run, also relay the launch line the dispatch printed
@@ -237,12 +234,28 @@ the user talks to an agent on the remote target, for example over Telegram. If t
 only, use `OFFLOADER_TRANSPORT` to run a target-side command that asks the remote agent or configured
 assistant to inspect the run and print the answer back locally.
 
-When reporting a dev-server URL for a Fly target with Nestail auth enabled, generate the shareable
-URL on the remote target with `nestail token <port> <path>` through `OFFLOADER_TRANSPORT`, or have the
-Telegram agent on the target do it. Do not construct a grant URL locally and do not ask the user to
-copy `NESTAIL_AUTH_SECRET` back to their local shell.
+**Authenticated Nestail links must be generated on the target.** The `nestail token ...`
+command needs the target's `NESTAIL_AUTH_SECRET`, so do not run it locally unless the local computer
+is the target. When reporting a dev-server URL, use the saved `OFFLOADER_TRANSPORT` to generate the
+link remotely, or ask the Telegram conversational agent on the target to generate it. For example:
+
+```bash
+printf '%s\n' 'nestail token 3000 /dashboard' | bash -c "$OFFLOADER_TRANSPORT"
+```
+
+Do not construct a grant URL locally and do not ask the user to copy `NESTAIL_AUTH_SECRET` back to
+their local shell. If the remote does not have `nestail` on `PATH`, run the target-side equivalent
+that the machine provides, but keep the generation on the remote so the secret never leaves the
+machine.
+
+## Optional: Progress Pings
+
+`vusperize` runs on the target beside the work and delivers live updates, for example to Telegram.
+Offer it only for long jobs or when the user asks for updates: wrap the dispatched command with
+`nix run github:ToxicPine/offloads#vusperize -- ...` on the target. If the user wants Telegram
+pings and they are not set up yet, see `references/setup-telegram.md`.
 
 ## Follow-up questions
 
-For how to view a dev server through the public Fly URL, why an address won't load, or who else can
-see it, read `references/frequently-asked-questions.md` before answering.
+For how to view a dev server through the target's public URL, why an address won't load, or who
+else can see it, read `references/frequently-asked-questions.md` before answering.

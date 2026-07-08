@@ -5,7 +5,7 @@ no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so
 result, and dispatch it through `offloader` like any other command. The harness must already be
 configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
 
-Two things to get right when composing, both inside the task text:
+The part you must get right is the task text. It needs two things:
 
 **A goal with a verifiable stopping condition.** Phrase the task so the harness can tell when it is
 done, e.g. "…; done when `npm test` passes and the README documents the new flag." Vague goals
@@ -16,20 +16,22 @@ work as it goes.
 pushed commit and the task text, and none of the conversation that led here. Write the task as a
 handoff brief, not a work order. Include what applies:
 
-- constraints and preferences the user stated, and the definition of done
+- constraints and preferences the user stated
 - decisions already made and why, so the run does not relitigate them
-- what was tried and failed, so the run does not repeat it
-- file paths to start from, and what not to touch or re-investigate
 - pointers to plans, issues, or docs already in the repo, instead of restating them
 
-The heredoc below makes task text of any length safe to compose, so never thin the brief to dodge
-quoting. A goal without its context produces a run that redoes what the conversation already
-settled.
+Sometimes it is also appropriate to include:
 
-The rest is already in the shape below: the wrapper commits and pushes the result because
-`offloader` never pulls anything back, and the harness runs non-interactively with approvals
-disabled — the expected posture on a disposable target, and not one to repeat on a machine that
-matters.
+- what was tried and failed, so the run does not repeat it
+- file paths to start from, and what not to touch or re-investigate
+
+Length is never a reason to thin the brief; the heredoc composition below quotes task text of any
+length safely.
+
+The wrapper handles the rest. It ends by committing and pushing the worktree: `offloader` never
+copies anything back, so results return only as commits on the run branch. And it runs the harness
+non-interactively with approvals disabled, the expected posture on a disposable target, and not
+one to repeat on a machine that matters.
 
 ## Composing the remote command safely
 
@@ -245,9 +247,3 @@ run it from that run's worktree — from anywhere else (or with `--all`) it can 
 run's session. Claude Code sessions are likewise scoped to the directory they ran in. The wrapper
 and driver write nothing shared: the driver file is a fresh `mktemp` path, and `<worktree>.run.sh`
 and `<worktree>.log` derive from each run's own worktree path.
-
-## Choosing a harness
-
-Prefer, in order: the harness the user asked for; the one this agent is itself running in
-(comparable model), if configured on the target; whichever is configured. When reporting back, say
-which was used only if it differs from the harness dispatching the run.
