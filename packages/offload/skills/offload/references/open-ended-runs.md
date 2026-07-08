@@ -5,10 +5,26 @@ no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so
 result, and dispatch it through `offloader` like any other command. The harness must already be
 configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
 
-The one thing to get right when composing is **a goal with a verifiable stopping condition**:
-phrase the task so the harness can tell when it is done, e.g. "…; done when `npm test` passes and
-the README documents the new flag." Vague goals produce runs that stop early or never stop. Also
-tell the harness, in the prompt, to commit its work as it goes.
+Two things to get right when composing, both inside the task text:
+
+**A goal with a verifiable stopping condition.** Phrase the task so the harness can tell when it is
+done, e.g. "…; done when `npm test` passes and the README documents the new flag." Vague goals
+produce runs that stop early or never stop. Also tell the harness, in the prompt, to commit its
+work as it goes.
+
+**The context the harness cannot see.** The remote harness starts blank: it has the repo at the
+pushed commit and the task text, nothing else — none of the conversation that led here. Write the
+task as a handoff brief, not a work order. Include what applies:
+
+- constraints and preferences the user stated, and the definition of done
+- decisions already made, and why — so the run does not relitigate them
+- what was already tried and failed, so the run does not repeat it
+- file paths to start from, and boundaries: what not to touch or re-investigate
+- pointers to plans, issues, or docs already in the repo, instead of restating them
+
+The heredoc below makes any length of task text safe to compose, so never thin the brief to dodge
+quoting. A goal without its context produces a run that confidently redoes the parts the
+conversation already settled.
 
 The rest is already in the shape below: the wrapper commits and pushes the result because
 `offloader` never pulls anything back, and the harness runs non-interactively with approvals
@@ -27,9 +43,10 @@ pass the variable as one argument. This is the whole shape, here with Claude Cod
 remote_script=$(cat <<'REMOTE'
 cat > "${PWD}.run.sh" <<'RUN'
 task=$(cat <<'TASK'
-<objective and completion condition - any quotes, $vars, and `backticks` are safe here>
+<objective, completion condition, and handoff context - any quotes, $vars, and `backticks` are safe here>
 TASK
 )
+echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
 status=complete
 claude -p --permission-mode bypassPermissions "/goal ${task}" || status=failed
 git add -A
@@ -55,6 +72,10 @@ disconnects (the mechanism, and the attached alternative for short watched runs,
 - The trailing git steps are the safety net that returns partial work even when the run dies
   mid-task: `status=failed` commits still push.
 - Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
+- The `worktree:` echo is the state check: the first line of `<worktree>.log` must name the run
+  branch and the same commit as the local `git rev-parse HEAD` that was dispatched. Remember that
+  `offloader` pushes committed state only — uncommitted local changes never reach the target, so
+  surface them before dispatch if the task depends on them.
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
@@ -72,6 +93,10 @@ claude -p --permission-mode bypassPermissions "/goal ${task}"
 ```
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
+- When the handoff context makes the task longer than the goal limit allows, keep the `/goal` text
+  to the objective and stopping condition, and write the rest of the brief from the `RUN` script to
+  `"${PWD}.brief.md"` with its own quoted heredoc — beside the worktree like the log, never swept
+  into a commit — then open the goal with "Read <worktree>.brief.md before starting."
 - Add `--max-budget-usd <n>` when the user wants a spend ceiling.
 - A bounded task that needs no goal loop drops the `/goal` prefix:
   `claude -p --permission-mode bypassPermissions "${task}"`.
@@ -111,10 +136,11 @@ like any other run:
 
 ```bash
 task=$(cat <<'TASK'
-<objective and completion condition>
+<objective, completion condition, and handoff context>
 TASK
 )
 export task
+echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
 driver_file=$(mktemp)
 cat > "${driver_file}" <<'DRIVER'
 # ... the driver script below ...

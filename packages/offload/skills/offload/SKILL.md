@@ -1,7 +1,7 @@
 ---
 name: offload
 description: Use when the user wants to run a long or resource-heavy task on another computer so their local machine stays free, the work continues if they close their laptop or lose connection, and the result returns as a reviewable branch in their project. Use this skill also when no offload target exists yet and the user needs help setting one up.
-argument-hint: <plain description of the work to hand off>
+argument-hint: <the work to hand off, plus any context the remote agent will need>
 ---
 
 # Offloader
@@ -190,6 +190,22 @@ when this skill provisions the machine.
   money. If they agree, follow `references/provision-remote-machine.md`.
 - If the target exists but `offloader` cannot reach the repo or push results back, use
   `offloader-configurator` to check and configure its GitHub access.
+
+**Carry the conversation over.** The remote assistant has seen none of this conversation: the task
+text you compose is the only conversational context it will ever have. Do not send a one-line
+description of work that this conversation spent an hour shaping. Write the task as a handoff
+brief — objective, constraints and preferences the user stated, decisions already made and why,
+what was tried and failed, relevant file paths, what not to touch — as
+`references/open-ended-runs.md` specifies. For a fixed command this matters less, but any prompt
+embedded in the command gets the same treatment.
+
+**Check what actually travels.** `offloader` pushes committed state only: `HEAD` goes to the run
+branch, and uncommitted changes stay behind. Before dispatching, run `git status`; if there are
+uncommitted changes the task depends on, tell the user and offer to commit them first (or state in
+the brief that they were left behind). After dispatching, the remote worktree is the pushed run
+branch at your `HEAD` commit — the open-ended wrapper logs the branch and commit at run start, so a
+mismatch is visible in `<worktree>.log`. If needed, verify through the transport:
+`git -C <worktree> rev-parse HEAD` must equal the local `git rev-parse HEAD` you dispatched.
 
 **Hand it off.** Whatever is dispatched runs in the foreground of the transport session and dies
 with it if the connection drops. Detach anything that should outlive the connection — that is most
