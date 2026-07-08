@@ -9,8 +9,9 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 From within Claude Code or Codex, the `/offload` command sets up a remote dev
 computer that matches the machine you work on, copying over your software
-versions and `.env` files, and hands your work off to it. From there, the work
-keeps running on its own, even after you close your laptop.
+versions and `.env` files, and hands your prompt off to it. That's why the
+prompt runs with everything it needs already in place, and keeps going on its
+own even after you close your laptop.
 
 You may, for example:
 
