@@ -69,9 +69,9 @@ the result as a normal branch.
 No. The offload carries your project state and a written task, not your chat
 history. To sync the sessions themselves, use [Entire](https://entire.io). It
 saves Claude Code and Codex transcripts to a branch in your repo, with secrets
-redacted, and restores them wherever the repo is checked out. Enable it before
-the conversation you want to keep. Session data lands on the branch when you
-commit, and anyone with access to the repo can read it.
+redacted, and restores them wherever the repo is checked out. This lets the
+remote agent resume with full context from your previous conversations, which
+can improve the quality of the offloaded work.
 
 ### Optional: Hermes Agent Integration With Telegram
 
