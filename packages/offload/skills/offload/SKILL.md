@@ -79,6 +79,28 @@ command there. The Fly target keeps its files between restarts, rebuilds project
 fresh each run, and has the remote-side tools installed. If no target exists, set one up with
 `references/provision-remote-machine.md`. Otherwise assume one exists.
 
+## What An Offload Is
+
+An offload is three moves: push, run, push back. `offloader` pushes the local `HEAD` to the repo
+remote — the base branch and a fresh run branch `offloader/<run-id>` — then reaches the target
+through the transport, materializes the run branch as a worktree there, and runs the command inside
+it. Everything to check follows from that shape:
+
+- **Only committed state travels.** `HEAD` is what gets pushed. If uncommitted changes matter to
+  the task, surface them and offer to commit first; otherwise they silently stay behind.
+- **Nothing comes back on its own.** The run's results exist only as commits the remote command
+  itself pushes to the run branch. A dispatched command that does not publish is a run that never
+  happened, however well it went.
+- **The environment is rebuilt, not copied.** The target re-derives it from `flake.nix`. Anything
+  the flake cannot provide — tools, env vars, secrets — will not exist there.
+- **The remote sees the repo and the command text, nothing else.** No shell state, no local files
+  outside the repo, and none of this conversation. For open-ended runs the task text must carry the
+  context the run needs; `references/open-ended-runs.md` covers what belongs in it.
+
+When in doubt about remote state, the check is one comparison: the worktree's `git rev-parse HEAD`
+on the target (the open-ended wrapper logs it at run start) must equal the local `HEAD` that was
+dispatched.
+
 ## Running the hand-off
 
 **Use Nixie directly for local offload dependencies.** Resolve `<skill-dir>` as the directory
@@ -190,22 +212,6 @@ when this skill provisions the machine.
   money. If they agree, follow `references/provision-remote-machine.md`.
 - If the target exists but `offloader` cannot reach the repo or push results back, use
   `offloader-configurator` to check and configure its GitHub access.
-
-**Carry the conversation over.** The remote assistant has seen none of this conversation: the task
-text you compose is the only conversational context it will ever have. Do not send a one-line
-description of work that this conversation spent an hour shaping. Write the task as a handoff
-brief — objective, constraints and preferences the user stated, decisions already made and why,
-what was tried and failed, relevant file paths, what not to touch — as
-`references/open-ended-runs.md` specifies. For a fixed command this matters less, but any prompt
-embedded in the command gets the same treatment.
-
-**Check what actually travels.** `offloader` pushes committed state only: `HEAD` goes to the run
-branch, and uncommitted changes stay behind. Before dispatching, run `git status`; if there are
-uncommitted changes the task depends on, tell the user and offer to commit them first (or state in
-the brief that they were left behind). After dispatching, the remote worktree is the pushed run
-branch at your `HEAD` commit — the open-ended wrapper logs the branch and commit at run start, so a
-mismatch is visible in `<worktree>.log`. If needed, verify through the transport:
-`git -C <worktree> rev-parse HEAD` must equal the local `git rev-parse HEAD` you dispatched.
 
 **Hand it off.** Whatever is dispatched runs in the foreground of the transport session and dies
 with it if the connection drops. Detach anything that should outlive the connection — that is most

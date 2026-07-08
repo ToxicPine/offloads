@@ -73,9 +73,7 @@ disconnects (the mechanism, and the attached alternative for short watched runs,
   mid-task: `status=failed` commits still push.
 - Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
 - The `worktree:` echo is the state check: the first line of `<worktree>.log` must name the run
-  branch and the same commit as the local `git rev-parse HEAD` that was dispatched. Remember that
-  `offloader` pushes committed state only — uncommitted local changes never reach the target, so
-  surface them before dispatch if the task depends on them.
+  branch and the same commit as the local `git rev-parse HEAD` that was dispatched.
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
