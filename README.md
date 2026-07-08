@@ -64,6 +64,15 @@ git identity, repo state, and coding-agent login state for tools like Codex and
 Claude Code. The goal is simple: run the same project somewhere else and return
 the result as a normal branch.
 
+### Does It Sync Claude Code / Codex Conversation History?
+
+No. The offload carries your project state and a written task, not your chat
+history. To sync the sessions themselves, use [Entire](https://entire.io). It
+saves Claude Code and Codex transcripts to a branch in your repo, with secrets
+redacted, and restores them wherever the repo is checked out. This lets the
+remote agent resume with full context from your previous conversations, which
+can improve the quality of the offloaded work.
+
 ### Optional: Hermes Agent Integration With Telegram
 
 The machine includes [Hermes](https://hermes-agent.nousresearch.com/) by

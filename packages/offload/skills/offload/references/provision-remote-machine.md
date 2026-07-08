@@ -14,13 +14,16 @@ Keep status updates plain and phase-based. Good wording:
 
 - "I don't see a saved remote computer for this project yet."
 - "Fly.io is logged in as `<account>`."
-- "Before I create it, choose either a generated name like `offload-abc123def456` or your own app
-  name, and choose a region."
+- "Before I create it, choose a name for your remote cloud computer. I can generate one like
+  `offload-abc123def456`, or you can pick your own."
+- "Which data center location should it run in? Somewhere close to you is fastest. I'd suggest
+  `<nearby location>`, or I can list the alternatives."
 - "The remote computer is created. I am adding the required secrets before starting it."
 - "The remote computer is running. I am saving the connection details locally."
 - "Next I need to connect the remote computer to GitHub so it can fetch and push branches for this
   project."
-- "After that I will run a tiny end-to-end check, then run your original request."
+- "After that I will send the remote computer a tiny test job, to confirm it can receive work
+  from this machine and push results back to your project, then run your original request."
 
 Avoid user-facing phrases such as `OFFLOADER_TRANSPORT`, `x-offload`, "transport works", "Machine ID",
 "flake marker", and "hand-off" unless the user asks for details, the exact command requires them, or

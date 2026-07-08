@@ -5,15 +5,33 @@ no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so
 result, and dispatch it through `offloader` like any other command. The harness must already be
 configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
 
-The one thing to get right when composing is **a goal with a verifiable stopping condition**:
-phrase the task so the harness can tell when it is done, e.g. "…; done when `npm test` passes and
-the README documents the new flag." Vague goals produce runs that stop early or never stop. Also
-tell the harness, in the prompt, to commit its work as it goes.
+The part you must get right is the task text. It needs two things:
 
-The rest is already in the shape below: the wrapper commits and pushes the result because
-`offloader` never pulls anything back, and the harness runs non-interactively with approvals
-disabled — the expected posture on a disposable target, and not one to repeat on a machine that
-matters.
+**A goal with a verifiable stopping condition.** Phrase the task so the harness can tell when it is
+done, e.g. "…; done when `npm test` passes and the README documents the new flag." Vague goals
+produce runs that stop early or never stop. Also tell the harness, in the prompt, to commit its
+work as it goes.
+
+**The context the harness cannot see.** The remote harness starts blank: it has the repo at the
+pushed commit and the task text, and none of the conversation that led here. Write the task as a
+handoff brief, not a work order. Include what applies:
+
+- constraints and preferences the user stated
+- decisions already made and why, so the run does not relitigate them
+- pointers to plans, issues, or docs already in the repo, instead of restating them
+
+Sometimes it is also appropriate to include:
+
+- what was tried and failed, so the run does not repeat it
+- file paths to start from, and what not to touch or re-investigate
+
+Length is never a reason to thin the brief; the heredoc composition below quotes task text of any
+length safely.
+
+The wrapper handles the rest. It ends by committing and pushing the worktree: `offloader` never
+copies anything back, so results return only as commits on the run branch. And it runs the harness
+non-interactively with approvals disabled, the expected posture on a disposable target, and not
+one to repeat on a machine that matters.
 
 ## Composing the remote command safely
 
@@ -27,9 +45,10 @@ pass the variable as one argument. This is the whole shape, here with Claude Cod
 remote_script=$(cat <<'REMOTE'
 cat > "${PWD}.run.sh" <<'RUN'
 task=$(cat <<'TASK'
-<objective and completion condition - any quotes, $vars, and `backticks` are safe here>
+<objective, completion condition, and handoff context - any quotes, $vars, and `backticks` are safe here>
 TASK
 )
+echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
 status=complete
 claude -p --permission-mode bypassPermissions "/goal ${task}" || status=failed
 git add -A
@@ -55,6 +74,8 @@ disconnects (the mechanism, and the attached alternative for short watched runs,
 - The trailing git steps are the safety net that returns partial work even when the run dies
   mid-task: `status=failed` commits still push.
 - Keep the commit subject format exactly: `offloader-target` uses it to answer "is it done?" later.
+- The `worktree:` echo is the state check: the first line of `<worktree>.log` must name the run
+  branch and the same commit as the local `git rev-parse HEAD` that was dispatched.
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
@@ -72,6 +93,10 @@ claude -p --permission-mode bypassPermissions "/goal ${task}"
 ```
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
+- When the brief outgrows that limit, keep the `/goal` text to the objective and stopping
+  condition, write the rest from the `RUN` script to `"${PWD}.brief.md"` with its own quoted
+  heredoc (beside the worktree like the log, never swept into a commit), and open the goal with
+  "Read <worktree>.brief.md before starting."
 - Add `--max-budget-usd <n>` when the user wants a spend ceiling.
 - A bounded task that needs no goal loop drops the `/goal` prefix:
   `claude -p --permission-mode bypassPermissions "${task}"`.
@@ -111,10 +136,11 @@ like any other run:
 
 ```bash
 task=$(cat <<'TASK'
-<objective and completion condition>
+<objective, completion condition, and handoff context>
 TASK
 )
 export task
+echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
 driver_file=$(mktemp)
 cat > "${driver_file}" <<'DRIVER'
 # ... the driver script below ...
@@ -221,9 +247,3 @@ run it from that run's worktree — from anywhere else (or with `--all`) it can 
 run's session. Claude Code sessions are likewise scoped to the directory they ran in. The wrapper
 and driver write nothing shared: the driver file is a fresh `mktemp` path, and `<worktree>.run.sh`
 and `<worktree>.log` derive from each run's own worktree path.
-
-## Choosing a harness
-
-Prefer, in order: the harness the user asked for; the one this agent is itself running in
-(comparable model), if configured on the target; whichever is configured. When reporting back, say
-which was used only if it differs from the harness dispatching the run.
