@@ -103,9 +103,11 @@ but goal-conditioned summarization is strictly better when available.**
 
   (Take the last such entry; munged-cwd = absolute cwd with every
   non-alphanumeric char replaced by `-`.)
-- Caveat: `/compact` mutates the source session (draws a compact boundary the
-  live UI session will act on). The non-mutating and higher-quality variant is
-  **resume-and-summarize with a fork** — verified working:
+- Caveat: `/compact` run directly against a session mutates it (draws a
+  compact boundary the live UI session will act on). Both non-mutating
+  alternatives are now verified — see "Non-mutating (external) compaction"
+  below. The simplest is **resume-and-summarize with a fork** — verified
+  working:
 
   ```bash
   claude -p --resume "$SESSION_ID" --fork-session \
@@ -177,6 +179,67 @@ Details and gotchas:
   The community `opencode-handoff` plugin notably *bypasses* compaction rather
   than customizing it — reinforcing the extraction-over-summarization pattern.
 - **Hermes**: `/compress` with no arguments, no documented config.
+
+### Non-mutating ("external") compaction — verified 2026-07-08
+
+Requirement: generate a compaction artifact from a live local session for the
+offload, without the local session ever gaining a compact boundary or losing
+its original context. Only the remote side should ever be "subject to" the
+compaction.
+
+**Fork-compact works and confines everything to the fork (empirically
+verified, Claude Code 2.1.202).** Experiment: a throwaway session was built
+covering two topics (codewords MANGO-7 and OTTER-3), then:
+
+```bash
+claude -p --resume <session-id> --fork-session "/compact Focus only on topic A"
+```
+
+Results:
+- The original session file gained **zero** `compact_boundary` entries and
+  zero `isCompactSummary` entries — structurally untouched.
+- The fork's file contained exactly one boundary and one summary.
+- Focus was honored **including exclusion**: the summary covered MANGO-7 and
+  contained zero mentions of OTTER-3.
+- The fork-brief variant (`--fork-session "Write a handoff brief focused on
+  topic A"`) also worked, producing a clean topic-scoped brief on stdout with
+  the original untouched.
+
+**Gotcha discovered: nested-session ID leakage.** When `claude -p` is invoked
+from inside another Claude Code session (as a skill would do), environment
+variables injected by the harness (`CLAUDE_CODE_SESSION_ID`,
+`CLAUDE_CODE_REMOTE_SESSION_ID` in the Claude-Code-Remote environment) can
+cause the *forked* session to be created under the parent session's ID —
+landing a same-named `.jsonl` in whatever project dir matches the invocation
+cwd. In the experiment this was harmless (different munged dir), but it means
+naive fork invocations can leave phantom sessions in the user's session store
+and, in pathological cwd cases, could collide with a real session file.
+
+**Hardening: run the summarizer against an isolated, disposable session
+store.** Both harnesses relocate their entire session state via one env var,
+which composes with the verified copy-then-resume behavior:
+
+```bash
+# Claude Code: isolated store, original session copied in, compact the copy
+tmp=$(mktemp -d)
+munged=$(pwd | sed 's/[^a-zA-Z0-9]/-/g')
+mkdir -p "$tmp/projects/$munged"
+cp ~/.claude/projects/$munged/<session-id>.jsonl "$tmp/projects/$munged/"
+CLAUDE_CONFIG_DIR="$tmp" claude -p --resume <session-id> \
+  "/compact Focus on everything needed to continue: <goal>"
+# extract isCompactSummary from the copy in $tmp, then rm -rf "$tmp"
+```
+
+The real `~/.claude` is never opened for writing; forks, ID collisions, and
+compact boundaries all land in the throwaway store. (`CLAUDE_CONFIG_DIR`
+relocation plus this exact copy-in flow needs one end-to-end confirmation run;
+the components — env-var relocation, copy-then-resume, fork-compact
+confinement — are individually verified.) The Codex equivalent is
+`CODEX_HOME=$tmp` with the rollout file copied under `$tmp/sessions/...` (or
+referenced directly via `thread/resume {path}`), since all Codex session state
+is rooted at `$CODEX_HOME`. Compaction executed on the *remote* machine after
+transplant achieves the same guarantee by construction — the local store is
+not even reachable.
 
 Design implication for /offload: when generating a handoff brief from a Claude
 Code session, prefer **focused compaction or fork-resume-summarize with the
@@ -257,7 +320,58 @@ schemas). Gate behind an explicit opt-in.**
   the target) and reference it in the brief — "full local-session transcript at
   <path> if this brief is insufficient."
 
-## 6. Direction constraints worth documenting
+## 6. Entire (entire.io) — session sync over git, directly relevant
+
+Verified against a clone of github.com/entireio/cli @ `0facbb24` (2026-07-07).
+
+**What it is.** An open-source CLI that hooks into the git workflow to capture
+AI agent sessions and index them alongside commits. Session metadata —
+including the agent's **raw native transcript** (`full.jsonl`), a compacted
+transcript, and checkpoint-scoped prompts — is stored on a dedicated
+`entire/checkpoints/v1` branch, linked to code commits via commit trailers.
+The active branch is never touched.
+
+**Does it actually enable sessions to sync? Yes — by riding git.** The
+mechanics, from source:
+- Per-agent adapters implement `ReadSession` (capture the native transcript as
+  raw bytes, `NativeData`) and `WriteSession` (write those bytes back into the
+  agent's native storage). Adapters exist for **Claude Code, Codex, Gemini
+  CLI, Pi, OpenCode, Copilot CLI, Cursor**, plus an external-agent protocol.
+- On `entire resume`, the destination path is **re-derived on the resuming
+  machine** (for Claude: `~/.claude/projects/<sanitized-repo-path>/`, computed
+  from wherever the repo is checked out there — `SanitizePathForClaude`), so
+  cross-machine path differences are handled by construction. It then hands
+  back the agent's native resume command (`claude --resume <id>`,
+  `codex resume <id>`).
+- This is a productized, multi-harness version of our Strategy C (raw session
+  transplant), using the exact transport offloader already has: a git push.
+  Their advertised flow includes "pick up exactly where you or a coworker left
+  off."
+
+**Secret handling — solves our biggest Strategy-C risk.** Before anything is
+written to `entire/checkpoints/v1`, transcripts pass a redaction pipeline with
+five always-on detectors (Shannon-entropy scoring, Betterleaks pattern rules,
+credentialed-URI, DB connection strings, bounded credential values →
+`REDACTED`), plus optional user rules, PII, and OpenAI Privacy Filter passes.
+Caveat: temporary local *shadow branches* contain unredacted working-tree
+snapshots and must never be pushed (Entire doesn't push them; gitignored files
+are filtered as partial defense).
+
+**Fit with /offload.**
+- Integration shape: enable Entire locally during the session; have offloader
+  additionally push `entire/checkpoints/v1` (today it pushes only HEAD and the
+  run branch); on the target, `entire resume` reconstructs native session
+  state in the remote checkout and the assistant continues with full context.
+- Compaction on the remote only — the local store is untouched by
+  construction, satisfying the non-mutation requirement.
+- Costs/limits: Entire must have been enabled before/during the local session
+  (hook-based capture — it cannot retroactively capture an untracked session);
+  the CLI must be installed on both ends; compact transcripts are skipped over
+  a 50MB blob cap; known git-worktree/GC interaction bugs are documented in
+  their KNOWN_LIMITATIONS (relevant because offloader's target layout is
+  worktree-based).
+
+## 7. Direction constraints worth documenting
 
 - Claude Code teleport is **cloud→local only** (`claude --teleport`); there is
   no local→arbitrary-remote push (requested in anthropics/claude-code#56687,
@@ -269,7 +383,7 @@ schemas). Gate behind an explicit opt-in.**
   before handoff) and the **brief as the intent channel**. /offload already has
   the git half; the brief half is the missing piece.
 
-## 7. Recommended tiers
+## 8. Recommended tiers
 
 1. **Tier 0 — skill text only (no code).** Add a "Carry the conversation over"
    section to the `offload` skill: state explicitly that the remote assistant
@@ -291,10 +405,23 @@ schemas). Gate behind an explicit opt-in.**
 
 - True cross-machine Claude session copy on latest versions with
   `sessions-index.json` present (needs a two-machine CI test).
-- Whether `--fork-session` + `/compact` confines the compact boundary to the
-  fork's file (likely, untested).
+- ~~Whether `--fork-session` + `/compact` confines the compact boundary to the
+  fork's file~~ — **resolved 2026-07-08: yes, verified** (see "Non-mutating
+  compaction"); original gains no boundary/summary, fork carries both, focus
+  honored including exclusion of the unfocused topic.
+- End-to-end confirmation of the `CLAUDE_CONFIG_DIR` isolated-store compaction
+  recipe (components individually verified), and the `CODEX_HOME` equivalent.
+- Codex app-server: re-verification on current master of whether any
+  per-invocation compaction-instruction channel exists (partial re-check
+  confirms remote-compaction paths never reference `compact_prompt`; the
+  token-budget path and `thread/start` config-map mapping still need
+  inspection), plus whether an informal pre-compact steering message is
+  visible to the compactor.
 - Codex `thread/resume {history}` interaction with boondoggler's
   `thread/goal/set` (source-verified, not executed end-to-end).
 - Whether gpt-5.5 performs better with a seeded full transcript or a compact
   brief — empirical product question; the brief + `thread/inject_items` is the
   safest first move.
+- Entire: end-to-end test of local capture → push `entire/checkpoints/v1` →
+  `entire resume` on an offloader target worktree; interaction of Entire's
+  worktree/GC known issues with offloader's bare-repo + worktree layout.
