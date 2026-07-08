@@ -7,9 +7,11 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` is a sync engine for project environments across two machines:
-it reproduces your project's environment on another computer so a coding agent
-can seamlessly pick up and continue long-running tasks there.
+`/offload` is a sync engine that recreates your project on a second computer —
+not just the code, but everything around it that makes the code actually run:
+the tools you have installed, your settings, your `.env`. Once that setup exists
+on the other machine, a coding agent can pick up your work there and keep going
+as if it were sitting at your desk.
 
 You may, for example:
 
