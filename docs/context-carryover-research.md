@@ -398,6 +398,25 @@ are filtered as partial defense).
   a 50MB blob cap; known git-worktree/GC interaction bugs are documented in
   their KNOWN_LIMITATIONS (relevant because offloader's target layout is
   worktree-based).
+- **Freshness gap at the offload moment (verified in source/docs 2026-07-08).**
+  Session data is *condensed* onto the pushable `entire/checkpoints/v1` branch
+  **at commit time**. Between commits, the live session's state accumulates on
+  temporary local shadow branches that are deleted after condensation and must
+  never be pushed (they contain unredacted working-tree snapshots). There is
+  no "condense now" command in the CLI reference. Consequence: at the moment a
+  user says "offload this," the conversation since the last commit — typically
+  the very turns that motivated the offload — is not yet in the pushable,
+  redacted artifact. An Entire-based offload path only carries fresh context
+  if the flow makes a commit at dispatch time (triggering condensation), which
+  is a real behavioral change to the dispatch sequence.
+- Remote-side detail: resume on the target should fork rather than continue
+  the same session identity (Claude `--fork-session`), since the user may keep
+  working in the original session locally.
+- Visibility: `entire/checkpoints/v1` lands on the repo's git remote, so the
+  (redacted) conversation history becomes repo content visible to anyone with
+  repo access. `entire enable --checkpoint-remote <provider:owner/repo>` can
+  route checkpoints to a separate repo; the skill flow should get explicit
+  consent before enabling.
 
 ## 7. Direction constraints worth documenting
 
