@@ -7,7 +7,9 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` lets coding agents continue long-running tasks on another machine.
+`/offload` is a sync engine for project environments across two machines:
+it reproduces your project's environment on another computer so a coding agent
+can seamlessly pick up and continue long-running tasks there.
 
 You may, for example:
 
