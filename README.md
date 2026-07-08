@@ -9,8 +9,8 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 From within Claude Code or Codex, the `/offload` command sets up a remote dev
 computer that matches the machine you work on, copying over your software
-versions and `.env` files, and hands your prompt off to it. So the handoff is
-seamless, and the work just keeps running.
+versions and `.env` files, and hands your prompt off to it. So your task is
+free to move between machines, and never has to stop.
 
 You may, for example:
 
