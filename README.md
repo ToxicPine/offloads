@@ -7,10 +7,10 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` sets up a remote dev computer just like the one you work on, copying
-over your software versions and `.env` files. From inside Claude Code or Codex,
-you can hand your work off in a single step, and it keeps running there
-uninterrupted.
+From inside Claude Code or Codex, a single `/offload` command sets up a remote
+dev computer that matches the machine you work on, copying over your software
+versions and `.env` files, and hands your work off to it. From there, the work
+keeps running on its own, even after you close your laptop.
 
 You may, for example:
 
