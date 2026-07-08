@@ -34,6 +34,25 @@ offloader -- npm run test
 
 The adapter named in the transport must be on `PATH`. For SSH and Tailscale, the first argument is the host; extra args pass through to the adapter. Offloader has no default transport, so one must be set before launch.
 
+## Persistence
+
+The dispatched command runs in the foreground of the transport session and dies with it if the connection drops. Detach anything that should outlive the connection — long tests, dev servers, agentic runs — with `setsid` (`nohup` on targets without it, such as macOS); the dispatch then returns immediately and the run's output lands beside the worktree:
+
+```bash
+run_cmd=$(cat <<'CMD'
+setsid bash -lc "<command>" > "${PWD}.log" 2>&1 < /dev/null &
+echo "detached: pid ${!}, log ${PWD}.log"
+CMD
+)
+offloader --command "${run_cmd}"
+```
+
+Dispatch plainly (no wrapper) only for short commands watched live, where stdout and the exit status should flow back through the transport.
+
+## Concurrent Dispatches
+
+Dispatches running at the same time — including from different agent sessions on the same local machine — do not conflict: each run gets its own branch and worktree, keyed by run id, and the shared bare repo handles concurrent fetches. Let offloader generate the run id. If you set `OFFLOADER_RUN_ID` (or `OFFLOADER_RUN_BRANCH`, `OFFLOADER_WORKTREE_NAME`), keep it unique across live runs and lowercase — branch and directory names derive from it, and ids differing only by case collide on case-insensitive filesystems.
+
 ## Required Context
 
 Before launching, confirm these are true:

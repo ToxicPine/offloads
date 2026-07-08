@@ -78,7 +78,6 @@ in
       claude-code-container
       opencode.package
       nestail
-      offloads.boondoggler
       offloads.ghwc
       offloads.ghwrc
       offloads.vusperize

@@ -220,7 +220,7 @@ in
 {
   imports = [
     (import ../../hm-base { })
-    offloads.homeModules."boondoggler-skills"
+    offloads.homeModules."offloader-skills"
     offloads.homeModules."ghwc-skills"
     offloads.homeModules."ghwrc-skills"
     offloads.homeModules."vusperize-skills"
