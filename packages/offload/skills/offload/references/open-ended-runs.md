@@ -13,18 +13,18 @@ produce runs that stop early or never stop. Also tell the harness, in the prompt
 work as it goes.
 
 **The context the harness cannot see.** The remote harness starts blank: it has the repo at the
-pushed commit and the task text, nothing else — none of the conversation that led here. Write the
-task as a handoff brief, not a work order. Include what applies:
+pushed commit and the task text, and none of the conversation that led here. Write the task as a
+handoff brief, not a work order. Include what applies:
 
 - constraints and preferences the user stated, and the definition of done
-- decisions already made, and why — so the run does not relitigate them
-- what was already tried and failed, so the run does not repeat it
-- file paths to start from, and boundaries: what not to touch or re-investigate
+- decisions already made and why, so the run does not relitigate them
+- what was tried and failed, so the run does not repeat it
+- file paths to start from, and what not to touch or re-investigate
 - pointers to plans, issues, or docs already in the repo, instead of restating them
 
-The heredoc below makes any length of task text safe to compose, so never thin the brief to dodge
-quoting. A goal without its context produces a run that confidently redoes the parts the
-conversation already settled.
+The heredoc below makes task text of any length safe to compose, so never thin the brief to dodge
+quoting. A goal without its context produces a run that redoes what the conversation already
+settled.
 
 The rest is already in the shape below: the wrapper commits and pushes the result because
 `offloader` never pulls anything back, and the harness runs non-interactively with approvals
@@ -91,10 +91,10 @@ claude -p --permission-mode bypassPermissions "/goal ${task}"
 ```
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
-- When the handoff context makes the task longer than the goal limit allows, keep the `/goal` text
-  to the objective and stopping condition, and write the rest of the brief from the `RUN` script to
-  `"${PWD}.brief.md"` with its own quoted heredoc — beside the worktree like the log, never swept
-  into a commit — then open the goal with "Read <worktree>.brief.md before starting."
+- When the brief outgrows that limit, keep the `/goal` text to the objective and stopping
+  condition, write the rest from the `RUN` script to `"${PWD}.brief.md"` with its own quoted
+  heredoc (beside the worktree like the log, never swept into a commit), and open the goal with
+  "Read <worktree>.brief.md before starting."
 - Add `--max-budget-usd <n>` when the user wants a spend ceiling.
 - A bounded task that needs no goal loop drops the `/goal` prefix:
   `claude -p --permission-mode bypassPermissions "${task}"`.

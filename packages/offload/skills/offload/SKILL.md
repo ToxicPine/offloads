@@ -81,25 +81,23 @@ fresh each run, and has the remote-side tools installed. If no target exists, se
 
 ## What An Offload Is
 
-An offload is three moves: push, run, push back. `offloader` pushes the local `HEAD` to the repo
-remote — the base branch and a fresh run branch `offloader/<run-id>` — then reaches the target
-through the transport, materializes the run branch as a worktree there, and runs the command inside
-it. Everything to check follows from that shape:
+An offload is three moves: push, run, push back. `offloader` pushes the local `HEAD` to the base
+branch and a fresh run branch `offloader/<run-id>`, reaches the target through the transport,
+materializes the run branch as a worktree there, and runs the command inside it. Everything to
+check follows from that shape:
 
 - **Only committed state travels.** `HEAD` is what gets pushed. If uncommitted changes matter to
-  the task, surface them and offer to commit first; otherwise they silently stay behind.
-- **Nothing comes back on its own.** The run's results exist only as commits the remote command
-  itself pushes to the run branch. A dispatched command that does not publish is a run that never
-  happened, however well it went.
+  the task, surface them and offer to commit first.
+- **Nothing comes back on its own.** Results exist only as commits the remote command pushes to
+  the run branch. A command that does not push has no result.
 - **The environment is rebuilt, not copied.** The target re-derives it from `flake.nix`. Anything
-  the flake cannot provide — tools, env vars, secrets — will not exist there.
-- **The remote sees the repo and the command text, nothing else.** No shell state, no local files
-  outside the repo, and none of this conversation. For open-ended runs the task text must carry the
+  the flake cannot provide (tools, env vars, secrets) will not exist there.
+- **The remote sees the repo and the command text, nothing else.** No shell state, no files
+  outside the repo, none of this conversation. For open-ended runs the task text must carry the
   context the run needs; `references/open-ended-runs.md` covers what belongs in it.
 
-When in doubt about remote state, the check is one comparison: the worktree's `git rev-parse HEAD`
-on the target (the open-ended wrapper logs it at run start) must equal the local `HEAD` that was
-dispatched.
+When in doubt about remote state, one comparison settles it: the worktree's `git rev-parse HEAD`
+on the target (the open-ended wrapper logs it at run start) must equal the dispatched local `HEAD`.
 
 ## Running the hand-off
 
