@@ -7,9 +7,9 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` copies your project onto another computer, sets up everything it
-needs to actually run there, and keeps your work going even after you close
-your laptop.
+`/offload` sets up a remote dev computer to match your own — same software
+versions, same config — so you can hand your work off and it keeps running
+there, uninterrupted.
 
 You may, for example:
 
