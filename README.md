@@ -7,8 +7,9 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` sets up another computer to run your project, so a coding agent can
-continue your work there.
+`/offload` copies your project onto another computer, sets up everything it
+needs to actually run there, and keeps your work going even after you close
+your laptop.
 
 You may, for example:
 
