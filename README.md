@@ -7,8 +7,8 @@ https://github.com/user-attachments/assets/e23d4b5c-057a-4a3b-994e-ab8cc9e28e3b
 
 ## About
 
-`/offload` is a sync engine for your whole project — the code plus the setup
-that runs it — so a coding agent can continue your work on another computer.
+`/offload` sets up another computer to run your project, so a coding agent can
+continue your work there.
 
 You may, for example:
 
