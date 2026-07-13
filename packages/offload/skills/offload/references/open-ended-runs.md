@@ -4,11 +4,10 @@ This file is about the anatomy of a **single open-ended run**: composing a codin
 invocation, wrapping it so it publishes its result, and dispatching it through `offloader` like any
 other command. There is no dedicated launcher tool. It concerns one job, not the harness in general.
 
-Its complement is `assistants-on-the-machine.md`, which covers the harness as a **standing resident
-of the target** — one-time setup and authentication, persistence, and steering a live run from
-another device. This file assumes that setup is already in place: on a provisioned machine take the
-harness (Claude Code or Codex) as present, or briefly check, and reach for that file only when an
-assistant still needs configuring or you're setting up remote control.
+Its complement is `assistants-on-the-machine.md`, which covers the harness's setup and
+authentication on the target and steering a live run from another device. This file assumes the
+harness (Claude Code or Codex) is already there; take it as present and turn to that file only if a
+run reports it missing or unauthenticated, or to set up remote control.
 
 The part you must get right is the task text. It needs two things:
 
@@ -84,9 +83,12 @@ disconnects (the mechanism, and the attached alternative for short watched runs,
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
-The dispatch returns as soon as the run starts, echoing the pid and log path. The outcome arrives
-as the status commit on the run branch; progress lives in `<worktree>.log`, and `<worktree>.run.sh`
-records what was launched — both beside the worktree, per-run unique, never swept into a commit.
+The dispatch returns as soon as the run starts, echoing the pid and log path. Glance at the first
+lines of `<worktree>.log` to confirm it actually started — the `worktree:` echo means the harness
+launched; a login or setup error there is the cue to fix the harness via
+`assistants-on-the-machine.md`, not to recompose the run. The outcome arrives as the status commit
+on the run branch; progress lives in `<worktree>.log`, and `<worktree>.run.sh` records what was
+launched — both beside the worktree, per-run unique, never swept into a commit.
 
 ## Claude Code
 

@@ -86,11 +86,10 @@ Everything else is a choice of what to dispatch:
   `codex`) already on the target. Choose the harness in this order: the one the user asked for;
   the one this agent itself runs in, so the remote model is comparable, if it is configured on
   the target; otherwise whichever is configured. Compose and dispatch the run from
-  `references/open-ended-runs.md`. The assistant it runs on is set up once — its auth (via
-  `offloader-configurator`), persistence, and remote control live in
-  `references/assistants-on-the-machine.md`; on a ready machine assume the assistant is present or
-  briefly check, and open that file only to configure one or set up steering. When reporting back,
-  name the harness only if it differs from the one dispatching the run.
+  `references/open-ended-runs.md`; if a run reports the harness missing or unauthenticated, or the
+  user wants to steer it live, `references/assistants-on-the-machine.md` covers setup, auth, and
+  remote control. When reporting back, name the harness only if it differs from the one dispatching
+  the run.
 
 If a supporting skill is missing, try `npx skills --help` and `npx skills add <repo> --list`;
 `offloader` and `offloader-configurator` are in `ToxicPine/offloads`.
