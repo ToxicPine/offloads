@@ -43,16 +43,22 @@ Do not invoke the `git-worktrees` skill, run `git worktree add`, use Claude Code
 or ask Codex to create an isolated worktree for the run. Offloader owns the checkout and run branch,
 and the publish wrapper returns results from that same checkout.
 
-## Reference: direct Claude sessions outside Offloader
+## Reference: align Claude-owned worktrees outside Offloader
 
-This is not part of an open-ended Offloader run. Use it only when operating Claude Code directly
-on the target and Claude itself must own creation through `--worktree`, `EnterWorktree`, or
-`isolation: worktree`.
+Codex follows Git's linked-worktree metadata, so checkouts under `<repo>/.worktrees/` remain tied to
+the primary checkout as one repository. Claude Code can use those checkouts too, but its own
+creation modes default to `<repo>/.claude/worktrees/`. The replacement hook below makes direct
+Claude-created worktrees use the shared `<repo>/.worktrees/` convention used here for Codex
+sessions and Offloader.
 
-The client-side agent must install the replacement hook over the target's configured transport.
-Set `remote_repo` to the known absolute primary-checkout path on the target; do not guess it. The
-snippet validates and preserves unrelated local settings, accepts an identical hook, and stops
-rather than replacing any different `WorktreeCreate` configuration:
+This setup is not part of an open-ended Offloader run: Offloader already creates the checkout and
+starts Claude inside it. Use the hook only when Claude itself will create a worktree through
+`--worktree`, `EnterWorktree`, or `isolation: worktree`.
+
+Install the repo-local hook from the client over the target's configured transport before launching
+that direct Claude session. Set `remote_repo` to the known absolute primary-checkout path on the
+target; do not guess it. The update preserves unrelated local settings, accepts an identical hook,
+and stops rather than replacing a different `WorktreeCreate` configuration:
 
 ```bash
 set -o pipefail
@@ -128,9 +134,10 @@ REMOTE
 printf '%s\n' "${remote_script}" | bash -c "${OFFLOADER_TRANSPORT}"
 ```
 
-The command places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`, starting from
-`origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
-`CLAUDE_WORKTREE_BASE_REF=HEAD` for Claude-owned worktrees that must inherit local commits.
+The hook replaces only Claude's creation step. It creates `<repo>/.worktrees/<name>` on
+`worktree-<name>`, preserving the standard Git link to the primary checkout. It starts from
+`origin/HEAD` and falls back to the launch checkout's `HEAD`; set `CLAUDE_WORKTREE_BASE_REF=HEAD`
+when the new worktree must inherit local commits.
 
 `WorktreeCreate` replaces Claude Code's default creation logic rather than complementing it, so
 Claude does not process `.worktreeinclude` afterward. Copy explicitly approved ignored files in a
