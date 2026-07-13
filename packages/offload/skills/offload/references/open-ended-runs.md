@@ -57,22 +57,16 @@ starts Claude inside it. Use the hook only when Claude itself will create a work
 
 Install the repo-local hook from the client over the target's configured transport before launching
 that direct Claude session. Set `remote_repo` to the known absolute primary-checkout path on the
-target; do not guess it. The update preserves unrelated local settings, accepts an identical hook,
-and stops rather than replacing a different `WorktreeCreate` configuration:
+target; do not guess it. The transport runs the heredoc directly on the target. The remote block
+parses `.claude/settings.local.json`, leaves an identical hook alone, adds the hook when absent, and
+stops on malformed or conflicting settings:
 
 ```bash
-set -o pipefail
 : "${OFFLOADER_TRANSPORT:?configure the target transport first}"
+bash -c "${OFFLOADER_TRANSPORT}" <<'REMOTE'
+set -Eeuo pipefail
 remote_repo=<absolute primary-checkout path on the target>
 [[ "${remote_repo}" = /* ]] || { echo "remote_repo must be absolute" >&2; exit 1; }
-remote_repo_b64=$(printf '%s' "${remote_repo}" | base64)
-remote_repo_b64=${remote_repo_b64//$'\n'/}
-remote_script="remote_repo_b64='${remote_repo_b64}'"$'\n'
-while IFS= read -r line; do
-  remote_script+="${line}"$'\n'
-done <<'REMOTE'
-set -Eeuo pipefail
-remote_repo=$(printf '%s' "${remote_repo_b64}" | base64 -d)
 cd "${remote_repo}"
 primary=$(git worktree list --porcelain | sed -n 's/^worktree //p;q')
 [[ "$(cd "${primary}" && pwd -P)" == "$(pwd -P)" ]] \
@@ -83,6 +77,14 @@ mkdir -p .claude
 settings=.claude/settings.local.json
 [[ ! -L "${settings}" && (! -e "${settings}" || -f "${settings}") ]] \
   || { echo "refusing unsafe settings path: ${settings}" >&2; exit 1; }
+if [[ -f "${settings}" ]]; then
+  current=$(jq -ce \
+    'select(type == "object" and ((has("hooks") | not) or (.hooks | type == "object")))' \
+    "${settings}") \
+    || { echo "refusing malformed or incompatible settings: ${settings}" >&2; exit 1; }
+else
+  current='{}'
+fi
 hook_command=$(cat <<'HOOK'
 bash -c 'set -Eeuo pipefail
 input=$(cat)
@@ -103,22 +105,11 @@ HOOK
 )
 desired=$(jq -cn --arg command "${hook_command}" \
   '[{hooks: [{type: "command", command: $command}]}]')
-write_settings=true
-if [[ -f "${settings}" ]]; then
-  current=$(jq -ce \
-    'select(type == "object" and ((has("hooks") | not) or (.hooks | type == "object")))' \
-    "${settings}") \
-    || { echo "refusing malformed or incompatible settings: ${settings}" >&2; exit 1; }
-  if jq -e '(.hooks? // {}) | has("WorktreeCreate")' "${settings}" >/dev/null; then
-    jq -e --argjson desired "${desired}" '.hooks.WorktreeCreate == $desired' \
-      "${settings}" >/dev/null \
-      || { echo "refusing to replace existing WorktreeCreate hooks" >&2; exit 1; }
-    write_settings=false
-  fi
+if jq -e '(.hooks? // {}) | has("WorktreeCreate")' <<<"${current}" >/dev/null; then
+  jq -e --argjson desired "${desired}" '.hooks.WorktreeCreate == $desired' \
+    <<<"${current}" >/dev/null \
+    || { echo "refusing to replace existing WorktreeCreate hooks" >&2; exit 1; }
 else
-  current='{}'
-fi
-if [[ "${write_settings}" == true ]]; then
   tmp=$(mktemp "${settings}.XXXXXX")
   trap 'rm -f "${tmp}"' EXIT
   printf '%s\n' "${current}" | jq --argjson desired "${desired}" \
@@ -131,7 +122,6 @@ grep -Fqx '/.claude/settings.local.json' "${exclude}" \
   || printf '%s\n' '/.claude/settings.local.json' >> "${exclude}"
 printf 'configured %s\n' "${settings}"
 REMOTE
-printf '%s\n' "${remote_script}" | bash -c "${OFFLOADER_TRANSPORT}"
 ```
 
 The hook replaces only Claude's creation step. It creates `<repo>/.worktrees/<name>` on
