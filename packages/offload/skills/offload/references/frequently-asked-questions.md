@@ -78,8 +78,8 @@ Any box reachable over SSH or Tailscale SSH can be the target. Set the transport
 A hand-rolled box needs the pieces the provisioned image normally supplies:
 
 - A writable home directory that survives restarts.
-- Repo storage. By default `offloader` keeps repos under `~/.remote-work`, with `.bare` beside
-  branch-named worktree directories.
+- Repo storage. By default `offloader` keeps a normal checkout under `~/.remote-work/repos`, with
+  run checkouts under each repo's `.worktrees/` directory.
 - Git credentials that can read and write the user's repos, configured through `offloader-configurator`.
 - For open-ended work, the chosen coding assistant's CLI (`claude` or `codex`) installed and
   configured through `offloader-configurator`.

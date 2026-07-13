@@ -7,7 +7,7 @@ description: Use for dispatching a command from the current git repo to a remote
 
 Use `offloader` when the user wants a command from the current git repository to run in a matching worktree on a remote target machine.
 
-Run it from inside the source repository. Offloader pushes the current `HEAD` to the selected repo remote, pushes a run branch named `offloader/<run-id>`, reaches the target through a transport command, creates or refreshes the target worktree, and runs the requested command there.
+Run it from inside the source repository. Offloader pushes the current `HEAD` to the selected repo remote, pushes a run branch named `offloader/<run-id>`, reaches the target through a transport command, creates or safely fast-forwards a clean target worktree, and runs the requested command there. It refuses to overwrite a modified or diverged worktree; use a fresh run id unless deliberately resuming an untouched dispatch.
 
 Typical usage:
 
@@ -51,7 +51,7 @@ Dispatch plainly (no wrapper) only for short commands watched live, where stdout
 
 ## Concurrent Dispatches
 
-Dispatches running at the same time — including from different agent sessions on the same local machine — do not conflict: each run gets its own branch and worktree, keyed by run id, and the shared bare repo handles concurrent fetches. Let offloader generate the run id. If you set `OFFLOADER_RUN_ID` (or `OFFLOADER_RUN_BRANCH`, `OFFLOADER_WORKTREE_NAME`), keep it unique across live runs and lowercase — branch and directory names derive from it, and ids differing only by case collide on case-insensitive filesystems.
+Dispatches running at the same time — including from different agent sessions on the same local machine — use separate branches and worktrees keyed by run id. Let offloader generate the run id. If you set `OFFLOADER_RUN_ID` (or `OFFLOADER_RUN_BRANCH`, `OFFLOADER_WORKTREE_NAME`), keep it unique across live runs and lowercase — branch and directory names derive from it, and ids differing only by case collide on case-insensitive filesystems.
 
 ## Required Context
 
@@ -73,9 +73,8 @@ If the repo has no remote, set `OFFLOADER_REPO_URL`. If the desired remote is no
 - `OFFLOADER_RUN_ID` fixes the run id instead of generating one.
 - `OFFLOADER_WORKTREE_NAME` overrides the target worktree directory name. By default it is derived from the run branch, so `offloader/<run-id>` becomes `offloader-<run-id>`.
 - `OFFLOADER_RUN_BRANCH` overrides the pushed run branch.
-- `OFFLOADER_BASE_BRANCH` records the source branch used as the base branch.
 - `OFFLOADER_REMOTE_ROOT` changes the target root, defaulting on the remote to `~/.remote-work`.
-- `OFFLOADER_REMOTE_DIR`, `OFFLOADER_BARE_DIR`, and `OFFLOADER_WORKTREE_DIR` override the exact remote directories.
+- `OFFLOADER_REMOTE_DIR` and `OFFLOADER_WORKTREE_DIR` override the exact remote directories.
 - `OFFLOADER_COMMAND` provides a shell command when not using `--command` or `-- COMMAND`.
 - `OFFLOADER_TRANSPORT` sets the transport command; `--transport` overrides it per call.
 
@@ -88,7 +87,7 @@ After dispatching, report:
 
 ```text
 offloader/<run-id>
-~/.remote-work/repos/<repo-path>/offloader-<run-id>
+~/.remote-work/repos/<repo-path>/.worktrees/offloader-<run-id>
 ```
 
 For later status checks on the target machine, use the `offloader-target` skill.

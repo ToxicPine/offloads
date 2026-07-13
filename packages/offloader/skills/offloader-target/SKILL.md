@@ -7,7 +7,7 @@ description: Use this to inspect long-running tasks the user dispatched to this 
 
 You are on the machine where the dispatched command runs. Inspect local files and processes directly, then answer with the concrete state you found.
 
-Offloader launches a command on this machine using a bare repo and worktree layout.
+Offloader launches a command on this machine using a normal checkout with linked worktrees.
 The source branch is pushed first, then the run branch is pushed as:
 
 ```text
@@ -17,8 +17,8 @@ offloader/<run-id>
 Default target paths are:
 
 ```text
-~/.remote-work/repos/<repo-path>/.bare
-~/.remote-work/repos/<repo-path>/offloader-<run-id>
+~/.remote-work/repos/<repo-path>
+~/.remote-work/repos/<repo-path>/.worktrees/offloader-<run-id>
 ```
 
 Useful environment names: `OFFLOADER_REPO_PATH`, `OFFLOADER_REMOTE_ROOT`, `OFFLOADER_WORKTREE_DIR`, `OFFLOADER_RUN_BRANCH`.
@@ -30,9 +30,8 @@ List recent Offloader worktrees under the remote root:
 ```bash
 set -o pipefail
 root="${OFFLOADER_REMOTE_ROOT:-${HOME}/.remote-work}"
-find "${root}/repos" -type d -name .git ! -path '*/.bare/*' -print 2>/dev/null \
-  | while IFS= read -r git_dir; do
-      worktree_path=${git_dir%/.git}
+find "${root}/repos" -type d -path '*/.worktrees/*' -prune -print 2>/dev/null \
+  | while IFS= read -r worktree_path; do
       if modified=$(stat -c '%Y' "${worktree_path}" 2>/dev/null); then
         :
       else
@@ -47,7 +46,7 @@ find "${root}/repos" -type d -name .git ! -path '*/.bare/*' -print 2>/dev/null \
 Inspect the selected worktree:
 
 ```bash
-worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
+worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/.worktrees/offloader-run-id"
 git -C "${worktree}" status --short --branch
 git -C "${worktree}" log -1 --oneline
 ```
@@ -109,7 +108,7 @@ ends. They are detached with `setsid`, or `nohup` where `setsid` is unavailable,
 session. Read progress and the launched script directly:
 
 ```bash
-worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
+worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/.worktrees/offloader-run-id"
 tail -n 50 "${worktree}.log"
 cat "${worktree}.run.sh"
 ```

@@ -33,6 +33,71 @@ copies anything back, so results return only as commits on the run branch. And i
 non-interactively with approvals disabled, the expected posture on a disposable target, and not
 one to repeat on a machine that matters.
 
+## Use Offloader's worktree
+
+Every open-ended hand-off in this skill goes through `offloader`. It creates the target branch and
+worktree, then starts the dispatched command inside that checkout. The launch snippets below use
+the resulting `PWD`; do not create or select another checkout first.
+
+Do not invoke the `git-worktrees` skill, run `git worktree add`, use Claude Code's worktree modes,
+or ask Codex to create an isolated worktree for the run. Offloader owns the checkout and run branch,
+and the publish wrapper returns results from that same checkout.
+
+## Reference: align Claude-owned worktrees outside Offloader
+
+Codex follows Git's linked-worktree metadata, so checkouts under `<repo>/.worktrees/` remain tied to
+the primary checkout as one repository. Claude Code can use those checkouts too, but its own
+creation modes default to `<repo>/.claude/worktrees/`. The replacement hook below makes direct
+Claude-created worktrees use the shared `<repo>/.worktrees/` convention used here for Codex
+sessions and Offloader.
+
+This setup is not part of an open-ended Offloader run: Offloader already creates the checkout and
+starts Claude inside it. Use the hook only when Claude itself will create a worktree through
+`--worktree`, `EnterWorktree`, or `isolation: worktree`.
+
+Install the repo-local hook from the client over the target's configured transport before launching
+that direct Claude session. Set `remote_repo` to the known absolute primary-checkout path on the
+target; do not guess it. Read the target-side script from this skill and inject it over the
+transport; do not execute it on the client. The script parses `.claude/settings.local.json`, leaves
+an identical hook alone, adds the hook when absent, and stops on malformed or conflicting settings
+(`skill_dir` is the `<skill-dir>` this skill resolves):
+
+```bash
+set -o pipefail
+: "${OFFLOADER_TRANSPORT:?configure the target transport first}"
+skill_dir=<skill-dir>
+remote_repo=<absolute primary-checkout path on the target>
+[[ "${remote_repo}" = /* ]] || { echo "remote_repo must be absolute" >&2; exit 1; }
+script="${skill_dir}/scripts/configure-claude-worktree-hook.sh"
+[[ -r "${script}" ]] || { echo "missing skill script: ${script}" >&2; exit 1; }
+{
+  printf 'remote_repo=%q\n' "${remote_repo}"
+  cat "${script}"
+} | bash -c "${OFFLOADER_TRANSPORT}"
+```
+
+Treat a nonzero result as a setup blocker; do not retry by merging or replacing settings through
+guesswork. When the script reports unsafe, malformed, or conflicting settings, it has left the
+existing settings untouched. Explain the problem to the user before relaying the diagnostic:
+
+- A different hook: "This repository already has custom Claude worktree behavior. I left it
+  unchanged; you need to choose whether to keep or replace it."
+- Malformed or unsafe settings: "I could not safely read this repository's local Claude settings,
+  so I left them untouched. The reported path needs review."
+
+Include the target repository and settings path, then the exact diagnostic for whoever resolves it.
+An identical hook succeeds and reports `already configured`.
+
+The hook replaces only Claude's creation step. It creates `<repo>/.worktrees/<name>` on
+`worktree-<name>`, preserving the standard Git link to the primary checkout. It starts from
+`origin/HEAD` and falls back to the launch checkout's `HEAD`; set `CLAUDE_WORKTREE_BASE_REF=HEAD`
+when the new worktree must inherit local commits.
+
+`WorktreeCreate` replaces Claude Code's default creation logic rather than complementing it, so
+Claude does not process `.worktreeinclude` afterward. Copy explicitly approved ignored files in a
+customized hook when needed; never copy secrets implicitly. The returned checkout remains a normal
+Git worktree, so Claude handles its standard Git cleanup without a custom `WorktreeRemove` hook.
+
 ## Composing the remote command safely
 
 The command string reaches the target byte-for-byte, so the only quoting hazard is local, while

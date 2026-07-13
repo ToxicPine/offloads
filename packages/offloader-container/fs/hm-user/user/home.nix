@@ -221,8 +221,7 @@ in
   imports = [
     (import ../../hm-base { })
     offloads.homeModules."offloader-skills"
-    offloads.homeModules."ghwc-skills"
-    offloads.homeModules."ghwrc-skills"
+    offloads.homeModules."git-worktrees-skills"
     offloads.homeModules."vusperize-skills"
     offloads.homeModules."nestail-skills"
     ./managed.nix

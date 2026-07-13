@@ -78,8 +78,6 @@ in
       claude-code-container
       opencode.package
       nestail
-      offloads.ghwc
-      offloads.ghwrc
       offloads.vusperize
       openssh-container
       procps-container

@@ -49,9 +49,8 @@ Examples:
 Other useful env overrides:
   OFFLOADER_REPO_ROOT, OFFLOADER_REPO_URL, OFFLOADER_REMOTE_NAME,
   OFFLOADER_REPO_PATH, OFFLOADER_TRANSPORT, OFFLOADER_RUN_ID,
-  OFFLOADER_WORKTREE_NAME, OFFLOADER_RUN_BRANCH, OFFLOADER_BASE_BRANCH,
-  OFFLOADER_REMOTE_ROOT, OFFLOADER_REMOTE_DIR, OFFLOADER_BARE_DIR,
-  OFFLOADER_WORKTREE_DIR, OFFLOADER_COMMAND
+  OFFLOADER_WORKTREE_NAME, OFFLOADER_RUN_BRANCH, OFFLOADER_REMOTE_ROOT,
+  OFFLOADER_REMOTE_DIR, OFFLOADER_WORKTREE_DIR, OFFLOADER_COMMAND
 USAGE
 }
 
@@ -208,10 +207,11 @@ base64_encode() {
 }
 
 base64_array_lines() {
-  local word
+  local encoded word
 
   for word in "$@"; do
-    printf "  '%s'\n" "$(base64_encode "${word}")"
+    encoded="$(base64_encode "${word}")"
+    printf "  '%s'\n" "${encoded}"
   done
 }
 
@@ -245,16 +245,12 @@ OFFLOADER_RUN_ID="${OFFLOADER_RUN_ID:-$(new_run_id)}"
 OFFLOADER_RUN_ID="$(sanitize_path_segment "${OFFLOADER_RUN_ID}")"
 OFFLOADER_RUN_BRANCH="${OFFLOADER_RUN_BRANCH:-offloader/${OFFLOADER_RUN_ID}}"
 OFFLOADER_WORKTREE_NAME="${OFFLOADER_WORKTREE_NAME:-$(default_worktree_name "${OFFLOADER_RUN_BRANCH}")}"
-OFFLOADER_BASE_BRANCH="${OFFLOADER_BASE_BRANCH:-$(git symbolic-ref --quiet --short HEAD 2>/dev/null || printf 'main')}"
 OFFLOADER_REMOTE_ROOT="${OFFLOADER_REMOTE_ROOT:-}"
 OFFLOADER_REMOTE_DIR="${OFFLOADER_REMOTE_DIR:-}"
-OFFLOADER_BARE_DIR="${OFFLOADER_BARE_DIR:-}"
 OFFLOADER_WORKTREE_DIR="${OFFLOADER_WORKTREE_DIR:-}"
 
 git check-ref-format "refs/heads/${OFFLOADER_RUN_BRANCH}" \
   || die "invalid OFFLOADER_RUN_BRANCH: ${OFFLOADER_RUN_BRANCH}"
-git check-ref-format "refs/heads/${OFFLOADER_BASE_BRANCH}" \
-  || die "invalid OFFLOADER_BASE_BRANCH: ${OFFLOADER_BASE_BRANCH}"
 
 COMMAND_STRING=
 COMMAND_ARGV_B64_LINES=
@@ -271,8 +267,6 @@ fi
 
 git push "${REPO_URL}" "HEAD:${OFFLOADER_RUN_BRANCH}"
 
-OFFLOADER_BASE_BRANCH_B64="$(base64_encode "${OFFLOADER_BASE_BRANCH}")"
-OFFLOADER_BARE_DIR_B64="$(base64_encode "${OFFLOADER_BARE_DIR}")"
 OFFLOADER_REMOTE_DIR_B64="$(base64_encode "${OFFLOADER_REMOTE_DIR}")"
 OFFLOADER_REMOTE_ROOT_B64="$(base64_encode "${OFFLOADER_REMOTE_ROOT}")"
 OFFLOADER_REPO_PATH_B64="$(base64_encode "${OFFLOADER_REPO_PATH}")"
@@ -302,11 +296,9 @@ b64_decode_into REPO_URL '${REPO_URL_B64}'
 b64_decode_into OFFLOADER_REPO_PATH '${OFFLOADER_REPO_PATH_B64}'
 b64_decode_into OFFLOADER_REMOTE_ROOT '${OFFLOADER_REMOTE_ROOT_B64}'
 b64_decode_into OFFLOADER_REMOTE_DIR '${OFFLOADER_REMOTE_DIR_B64}'
-b64_decode_into OFFLOADER_BARE_DIR '${OFFLOADER_BARE_DIR_B64}'
 b64_decode_into OFFLOADER_WORKTREE_NAME '${OFFLOADER_WORKTREE_NAME_B64}'
 b64_decode_into OFFLOADER_WORKTREE_DIR '${OFFLOADER_WORKTREE_DIR_B64}'
 b64_decode_into OFFLOADER_RUN_BRANCH '${OFFLOADER_RUN_BRANCH_B64}'
-b64_decode_into OFFLOADER_BASE_BRANCH '${OFFLOADER_BASE_BRANCH_B64}'
 b64_decode_into COMMAND_STRING '${COMMAND_STRING_B64}'
 COMMAND_MODE=${COMMAND_MODE}
 
@@ -321,23 +313,62 @@ done
 
 : "\${OFFLOADER_REMOTE_ROOT:=\${HOME}/.remote-work}"
 : "\${OFFLOADER_REMOTE_DIR:=\${OFFLOADER_REMOTE_ROOT}/repos/\${OFFLOADER_REPO_PATH}}"
-: "\${OFFLOADER_BARE_DIR:=\${OFFLOADER_REMOTE_DIR}/.bare}"
-: "\${OFFLOADER_WORKTREE_DIR:=\${OFFLOADER_REMOTE_DIR}/\${OFFLOADER_WORKTREE_NAME}}"
+: "\${OFFLOADER_WORKTREE_DIR:=\${OFFLOADER_REMOTE_DIR}/.worktrees/\${OFFLOADER_WORKTREE_NAME}}"
 
-mkdir -p "\${OFFLOADER_REMOTE_DIR}"
-if [ ! -d "\${OFFLOADER_BARE_DIR}" ]; then
-  git clone --bare "\${REPO_URL}" "\${OFFLOADER_BARE_DIR}"
+mkdir -p "\$(dirname "\${OFFLOADER_REMOTE_DIR}")"
+setup_lock="\${OFFLOADER_REMOTE_DIR}.offloader-setup-lock"
+setup_attempt=0
+while ! mkdir "\${setup_lock}" 2>/dev/null; do
+  setup_attempt=\$((setup_attempt + 1))
+  if [ "\${setup_attempt}" -ge 600 ]; then
+    echo "offloader: timed out waiting for target repo setup lock: \${setup_lock}" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+release_setup_lock() {
+  rmdir "\${setup_lock}" 2>/dev/null || true
+}
+trap release_setup_lock EXIT
+
+if [ ! -e "\${OFFLOADER_REMOTE_DIR}" ]; then
+  git clone "\${REPO_URL}" "\${OFFLOADER_REMOTE_DIR}"
+elif [ ! -d "\${OFFLOADER_REMOTE_DIR}/.git" ]; then
+  echo "offloader: target repo path is not a normal Git checkout: \${OFFLOADER_REMOTE_DIR}" >&2
+  exit 1
 fi
-git -C "\${OFFLOADER_BARE_DIR}" fetch "\${REPO_URL}" "+refs/heads/\${OFFLOADER_RUN_BRANCH}:refs/heads/\${OFFLOADER_RUN_BRANCH}"
+
+run_ref="refs/remotes/offloader/\${OFFLOADER_RUN_BRANCH}"
+git -C "\${OFFLOADER_REMOTE_DIR}" fetch "\${REPO_URL}" \
+  "+refs/heads/\${OFFLOADER_RUN_BRANCH}:\${run_ref}"
+
+exclude="\$(git -C "\${OFFLOADER_REMOTE_DIR}" rev-parse --path-format=absolute --git-path info/exclude)"
+mkdir -p "\$(dirname "\${exclude}")"
+touch "\${exclude}"
+grep -Fqx '/.worktrees/' "\${exclude}" || printf '%s\n' '/.worktrees/' >>"\${exclude}"
+
 mkdir -p "\$(dirname "\${OFFLOADER_WORKTREE_DIR}")"
 if [ -d "\${OFFLOADER_WORKTREE_DIR}/.git" ] || [ -f "\${OFFLOADER_WORKTREE_DIR}/.git" ]; then
-  git -C "\${OFFLOADER_WORKTREE_DIR}" fetch origin
-  git -C "\${OFFLOADER_WORKTREE_DIR}" checkout "\${OFFLOADER_RUN_BRANCH}"
-  git -C "\${OFFLOADER_WORKTREE_DIR}" reset --hard "\${OFFLOADER_RUN_BRANCH}"
+  current_branch="\$(git -C "\${OFFLOADER_WORKTREE_DIR}" symbolic-ref --quiet --short HEAD || true)"
+  if [ "\${current_branch}" != "\${OFFLOADER_RUN_BRANCH}" ] \
+    || [ -n "\$(git -C "\${OFFLOADER_WORKTREE_DIR}" status --porcelain)" ] \
+    || ! git -C "\${OFFLOADER_WORKTREE_DIR}" merge-base --is-ancestor HEAD "\${run_ref}"; then
+    echo "offloader: refusing to overwrite modified or diverged worktree: \${OFFLOADER_WORKTREE_DIR}" >&2
+    echo "offloader: choose a new run id or inspect the existing run" >&2
+    exit 1
+  fi
+  git -C "\${OFFLOADER_WORKTREE_DIR}" reset --hard "\${run_ref}"
 else
-  rm -rf "\${OFFLOADER_WORKTREE_DIR}"
-  git -C "\${OFFLOADER_BARE_DIR}" worktree add "\${OFFLOADER_WORKTREE_DIR}" "\${OFFLOADER_RUN_BRANCH}"
+  if [ -e "\${OFFLOADER_WORKTREE_DIR}" ] || [ -L "\${OFFLOADER_WORKTREE_DIR}" ]; then
+    echo "offloader: worktree path already exists and is not a Git worktree: \${OFFLOADER_WORKTREE_DIR}" >&2
+    exit 1
+  fi
+  git -C "\${OFFLOADER_REMOTE_DIR}" worktree add -b "\${OFFLOADER_RUN_BRANCH}" \
+    "\${OFFLOADER_WORKTREE_DIR}" "\${run_ref}"
 fi
+release_setup_lock
+trap - EXIT
+
 cd "\${OFFLOADER_WORKTREE_DIR}"
 if [ "\${COMMAND_MODE}" = "shell" ]; then
   exec bash -lc "\${COMMAND_STRING}"

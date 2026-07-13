@@ -100,6 +100,9 @@ default setup.
 `offloader-transports` is the small set of ways to reach that computer, including
 Fly.io, plain SSH, and Tailscale SSH.
 
+`git-worktrees` is concise agent guidance for creating and removing ordinary
+linked worktrees under a repository-local `.worktrees` directory.
+
 `nestail` turns `localhost:<port>` on the remote computer into an openable URL,
 and can generate protected share links for that port.
 
