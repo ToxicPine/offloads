@@ -232,7 +232,9 @@ progress later. For a detached open-ended run, also relay the launch line the di
 (pid and `<worktree>.log` path on the target). `offloader-target` is a target-side skill. It is useful when
 the user talks to an agent on the remote target, for example over Telegram. If the user is local
 only, use `OFFLOADER_TRANSPORT` to run a target-side command that asks the remote agent or configured
-assistant to inspect the run and print the answer back locally.
+assistant to inspect the run and print the answer back locally. For an open-ended run, the user may
+also be able to check in on and steer the assistant live from another device; see
+`references/assistants-on-the-machine.md` for what each assistant needs.
 
 **Authenticated Nestail links must be generated on the target.** The `nestail token ...`
 command needs the target's `NESTAIL_AUTH_SECRET`, so do not run it locally unless the local computer
