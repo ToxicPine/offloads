@@ -7,7 +7,7 @@ description: Use for dispatching a command from the current git repo to a remote
 
 Use `offloader` when the user wants a command from the current git repository to run in a matching worktree on a remote target machine.
 
-Run it from inside the source repository. Offloader pushes the current `HEAD` to the selected repo remote, pushes a run branch named `offloader/<run-id>`, reaches the target through a transport command, creates or refreshes the target worktree, and runs the requested command there.
+Run it from inside the source repository. Offloader pushes the current `HEAD` to the selected repo remote, pushes a run branch named `offloader/<run-id>`, reaches the target through a transport command, creates or safely fast-forwards a clean target worktree, and runs the requested command there. It refuses to overwrite a modified or diverged worktree; use a fresh run id unless deliberately resuming an untouched dispatch.
 
 Typical usage:
 

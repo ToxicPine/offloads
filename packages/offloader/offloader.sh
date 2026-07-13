@@ -349,7 +349,14 @@ grep -Fqx '/.worktrees/' "\${exclude}" || printf '%s\n' '/.worktrees/' >>"\${exc
 
 mkdir -p "\$(dirname "\${OFFLOADER_WORKTREE_DIR}")"
 if [ -d "\${OFFLOADER_WORKTREE_DIR}/.git" ] || [ -f "\${OFFLOADER_WORKTREE_DIR}/.git" ]; then
-  git -C "\${OFFLOADER_WORKTREE_DIR}" checkout "\${OFFLOADER_RUN_BRANCH}"
+  current_branch="\$(git -C "\${OFFLOADER_WORKTREE_DIR}" symbolic-ref --quiet --short HEAD || true)"
+  if [ "\${current_branch}" != "\${OFFLOADER_RUN_BRANCH}" ] \
+    || [ -n "\$(git -C "\${OFFLOADER_WORKTREE_DIR}" status --porcelain)" ] \
+    || ! git -C "\${OFFLOADER_WORKTREE_DIR}" merge-base --is-ancestor HEAD "\${run_ref}"; then
+    echo "offloader: refusing to overwrite modified or diverged worktree: \${OFFLOADER_WORKTREE_DIR}" >&2
+    echo "offloader: choose a new run id or inspect the existing run" >&2
+    exit 1
+  fi
   git -C "\${OFFLOADER_WORKTREE_DIR}" reset --hard "\${run_ref}"
 else
   if [ -e "\${OFFLOADER_WORKTREE_DIR}" ] || [ -L "\${OFFLOADER_WORKTREE_DIR}" ]; then
