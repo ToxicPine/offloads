@@ -76,8 +76,9 @@ script="${skill_dir}/scripts/configure-claude-worktree-hook.sh"
 } | bash -c "${OFFLOADER_TRANSPORT}"
 ```
 
-Treat a nonzero result as a setup blocker and leave the target unchanged; do not merge or replace
-settings by guesswork. Explain it to the user before relaying the diagnostic:
+Treat a nonzero result as a setup blocker; do not retry by merging or replacing settings through
+guesswork. When the script reports unsafe, malformed, or conflicting settings, it has left the
+existing settings untouched. Explain the problem to the user before relaying the diagnostic:
 
 - A different hook: "This repository already has custom Claude worktree behavior. I left it
   unchanged; you need to choose whether to keep or replace it."
