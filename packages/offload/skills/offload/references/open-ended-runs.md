@@ -33,38 +33,21 @@ copies anything back, so results return only as commits on the run branch. And i
 non-interactively with approvals disabled, the expected posture on a disposable target, and not
 one to repeat on a machine that matters.
 
-## Choose the worktree before launch
+## Use Offloader's worktree
 
-Decide which workflow owns the checkout before starting the harness. A normal `offloader` dispatch
-already creates a branch and worktree on the target, then starts the command inside it. Reuse that
-current directory. Do not run `claude --worktree`, create a nested `.worktrees` directory, or ask
-Codex to create another managed worktree inside it. The launch snippets below assume this normal
-case and use the current `PWD` as the harness working directory.
+Every open-ended hand-off in this skill goes through `offloader`. It creates the target branch and
+worktree, then starts the dispatched command inside that checkout. The launch snippets below use
+the resulting `PWD`; do not create or select another checkout first.
 
-When starting an open-ended run directly on the target instead, with no surrounding workflow that
-already owns a checkout, use the installed `git-worktrees` skill first. Create or select
-`<repo>/.worktrees/<name>`, choose the run branch and base ref deliberately, and then launch the
-harness from the absolute path the skill reports:
+Do not invoke the `git-worktrees` skill, run `git worktree add`, use Claude Code's worktree modes,
+or ask Codex to create an isolated worktree for the run. Offloader owns the checkout and run branch,
+and the publish wrapper returns results from that same checkout.
 
-```bash
-worktree=<absolute path reported by the git-worktrees skill>
-cd "${worktree}"
-# Continue with the matching Claude Code or Codex recipe below; both use this PWD.
-```
+## Reference: direct Claude sessions outside Offloader
 
-The `git-worktrees` skill covers only the Git lifecycle. Keep harness alignment here:
-
-- Codex only needs the selected directory as `cwd`; it does not need to adopt the checkout as
-  Codex-managed.
-- Claude Code can run directly in an existing worktree. Do not use its creation mode when another
-  workflow already owns the checkout.
-- Whichever workflow creates a worktree remains responsible for publishing and cleanup.
-
-## Optional: configure Claude-owned worktrees on the target
-
-Skip this step for normal Offloader runs: Offloader already owns their checkout. Use it only before
-a direct target-side launch where Claude Code itself will own creation through `--worktree`,
-`EnterWorktree`, or `isolation: worktree`.
+This is not part of an open-ended Offloader run. Use it only when operating Claude Code directly
+on the target and Claude itself must own creation through `--worktree`, `EnterWorktree`, or
+`isolation: worktree`.
 
 The client-side agent must install the replacement hook over the target's configured transport.
 Set `remote_repo` to the known absolute primary-checkout path on the target; do not guess it. The
