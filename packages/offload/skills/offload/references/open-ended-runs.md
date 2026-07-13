@@ -33,6 +33,31 @@ copies anything back, so results return only as commits on the run branch. And i
 non-interactively with approvals disabled, the expected posture on a disposable target, and not
 one to repeat on a machine that matters.
 
+## Choose the worktree before launch
+
+Decide which workflow owns the checkout before starting the harness. A normal `offloader` dispatch
+already creates a branch and worktree on the target, then starts the command inside it. Reuse that
+current directory. Do not run `claude --worktree`, create a nested `.worktrees` directory, or ask
+Codex to create another managed worktree inside it. The launch snippets below assume this normal
+case and use the current `PWD` as the harness working directory.
+
+When starting an open-ended run directly on the target instead, with no surrounding workflow that
+already owns a checkout, use the installed `git-worktrees` skill first. Create or select
+`<repo>/.worktrees/<name>`, choose the run branch and base ref deliberately, and then launch the
+harness from the absolute path the skill reports:
+
+```bash
+worktree=<absolute path reported by the git-worktrees skill>
+cd "${worktree}"
+# Continue with the matching Claude Code or Codex recipe below; both use this PWD.
+```
+
+Claude Code can run directly in that existing worktree. If Claude Code itself owns creation, the
+same skill documents its `WorktreeCreate` hook so Claude places the checkout under `.worktrees`.
+That hook replaces Claude's default creator; do not combine it with a separately prepared checkout.
+Codex only needs the selected directory as `cwd` and does not need to adopt it as Codex-managed.
+Whichever workflow creates the worktree remains responsible for publishing and cleanup.
+
 ## Composing the remote command safely
 
 The command string reaches the target byte-for-byte, so the only quoting hazard is local, while

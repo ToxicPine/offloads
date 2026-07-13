@@ -13,7 +13,14 @@
   };
 
   outputs =
-    { self, nixpkgs, nixpkgs-unstable, automate-accounts, google-workspace-cli, ... }:
+    {
+      self,
+      nixpkgs,
+      nixpkgs-unstable,
+      automate-accounts,
+      google-workspace-cli,
+      ...
+    }:
     let
       skills = import ./skills.nix { lib = nixpkgs.lib; };
 
@@ -48,12 +55,8 @@
           skillsPath = ./packages/offload/skills;
         }
         {
-          name = "ghwc";
-          skillsPath = ./packages/ghwc/skills;
-        }
-        {
-          name = "ghwrc";
-          skillsPath = ./packages/ghwrc/skills;
+          name = "git-worktrees";
+          skillsPath = ./packages/git-worktrees/skills;
         }
         {
           name = "vusperize";
@@ -83,8 +86,6 @@
             system = pkgs.stdenv.hostPlatform.system;
           };
           offloader-transports = pkgs.callPackage ./packages/offloader-transports { };
-          ghwc = pkgs.callPackage ./packages/ghwc { };
-          ghwrc = pkgs.callPackage ./packages/ghwrc { };
           vusperize = pkgs.callPackage ./packages/vusperize { };
           nestail = pkgs.callPackage ./packages/nestail { };
           # poltrock = pkgs.callPackage ./packages/poltrock { };
