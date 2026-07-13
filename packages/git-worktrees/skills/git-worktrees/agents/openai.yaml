@@ -1,4 +1,0 @@
-interface:
-  display_name: "Git Worktrees"
-  short_description: "Create and manage repository worktrees"
-  default_prompt: "Use $git-worktrees to create an isolated worktree for this task."
