@@ -40,10 +40,10 @@
       "version_upper_bound": null,
       "release_prefix": null,
       "submodules": false,
-      "version": "v2026.6.5",
-      "revision": "d6b9cfa3e1f460f5729553ef42b174da28b765c7",
-      "url": "https://api.github.com/repos/NousResearch/hermes-agent/tarball/refs/tags/v2026.6.5",
-      "hash": "sha256-ngpkopVczNrT0bfCXHm38QjgrZT96Bm/rO89NA/ls3Y="
+      "version": "v2026.7.7.2",
+      "revision": "b7751df34688835a108e0d630f3495fc11f3df79",
+      "url": "https://api.github.com/repos/NousResearch/hermes-agent/tarball/refs/tags/v2026.7.7.2",
+      "hash": "sha256-RieWkLWEn21aamFvQTTnJwwQl00JJGgp3LvY3D3G3jQ="
     },
     "home-manager": {
       "type": "Git",
@@ -73,9 +73,9 @@
       },
       "branch": "master",
       "submodules": false,
-      "revision": "204e523b4359de89ee81ab932847604626178846",
+      "revision": "6919d2cbd385d9ede763fee13a7fe6dd02b67241",
       "url": null,
-      "hash": "sha256-hBAFnQN2FVwKJxTZwzdkWQvRuhh5ahsbj2AlxXZ3OZ8="
+      "hash": "sha256-Sz1jvHO96D6A+3byyZGFPMh8s6elfMfpwzPFFrlaVvQ="
     }
   },
   "version": 8
