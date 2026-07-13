@@ -228,35 +228,6 @@ in
   ];
 
   home.file = {
-    ".claude/settings.json".text = builtins.toJSON {
-      hooks.WorktreeCreate = [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = "bash -c ${lib.escapeShellArg ''
-                set -Eeuo pipefail
-                input=$(cat)
-                name=$(jq -er '.name | strings | select(length > 0)' <<<"''${input}")
-                cwd=$(jq -er '.cwd | strings | select(length > 0)' <<<"''${input}")
-                case "''${name}" in .|..|*[!A-Za-z0-9._-]*) echo "unsafe worktree name: ''${name}" >&2; exit 1;; *) :;; esac
-                repo=$(git -C "''${cwd}" worktree list --porcelain | sed -n "s/^worktree //p;q")
-                bare=$(git -C "''${repo}" rev-parse --is-bare-repository); test "''${bare}" = false
-                worktree="''${repo}/.worktrees/''${name}"; branch="worktree-''${name}"
-                exclude=$(git -C "''${repo}" rev-parse --path-format=absolute --git-path info/exclude)
-                mkdir -p "$(dirname "''${exclude}")" "''${repo}/.worktrees"; touch "''${exclude}"
-                grep -Fqx "/.worktrees/" "''${exclude}" || printf "%s\n" "/.worktrees/" >>"''${exclude}"
-                base="''${CLAUDE_WORKTREE_BASE_REF:-}"
-                if test -z "''${base}"; then git -C "''${repo}" fetch origin >&2 && base=$(git -C "''${repo}" symbolic-ref --quiet --short refs/remotes/origin/HEAD || true); base="''${base:-HEAD}"; fi
-                git -C "''${repo}" worktree add -b "''${branch}" "''${worktree}" "''${base}" >&2
-                cd "''${worktree}"; pwd -P
-              ''}";
-            }
-          ];
-        }
-      ];
-    };
-
     ".codex/packages/standalone/current/codex" = {
       source = "${codex-container}/bin/codex";
       force = true;

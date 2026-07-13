@@ -84,7 +84,6 @@ in
       curl
       git
       gh
-      jq
       tmux-container
     ];
 

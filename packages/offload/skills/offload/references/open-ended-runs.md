@@ -60,15 +60,93 @@ The `git-worktrees` skill covers only the Git lifecycle. Keep harness alignment 
   workflow already owns the checkout.
 - Whichever workflow creates a worktree remains responsible for publishing and cleanup.
 
-When Claude Code itself should own creation through `--worktree`, `EnterWorktree`, or
-`isolation: worktree`, configure its user-scoped `~/.claude/settings.json` with a sole
-`WorktreeCreate` handler. The provisioned target embeds that handler directly in this settings
-file as a compact `bash -c` command; it does not install a separate creator script. User-managed
-targets need an equivalent command hook that reads `name` and `cwd` from Claude's JSON input and
-prints only the created worktree's absolute path on stdout.
+## Optional: configure Claude-owned worktrees on the target
 
-The provisioned command places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`,
-starting from `origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
+Skip this step for normal Offloader runs: Offloader already owns their checkout. Use it only before
+a direct target-side launch where Claude Code itself will own creation through `--worktree`,
+`EnterWorktree`, or `isolation: worktree`.
+
+The client-side agent must install the replacement hook over the target's configured transport.
+Set `remote_repo` to the known absolute primary-checkout path on the target; do not guess it. The
+snippet validates and preserves unrelated local settings, accepts an identical hook, and stops
+rather than replacing any different `WorktreeCreate` configuration:
+
+```bash
+set -o pipefail
+: "${OFFLOADER_TRANSPORT:?configure the target transport first}"
+remote_repo=<absolute primary-checkout path on the target>
+[[ "${remote_repo}" = /* ]] || { echo "remote_repo must be absolute" >&2; exit 1; }
+remote_repo_b64=$(printf '%s' "${remote_repo}" | base64)
+remote_repo_b64=${remote_repo_b64//$'\n'/}
+remote_script="remote_repo_b64='${remote_repo_b64}'"$'\n'
+while IFS= read -r line; do
+  remote_script+="${line}"$'\n'
+done <<'REMOTE'
+set -Eeuo pipefail
+remote_repo=$(printf '%s' "${remote_repo_b64}" | base64 -d)
+cd "${remote_repo}"
+primary=$(git worktree list --porcelain | sed -n 's/^worktree //p;q')
+[[ "$(cd "${primary}" && pwd -P)" == "$(pwd -P)" ]] \
+  || { echo "refusing to configure a non-primary checkout: ${remote_repo}" >&2; exit 1; }
+[[ ! -L .claude && (! -e .claude || -d .claude) ]] \
+  || { echo "refusing unsafe .claude path" >&2; exit 1; }
+mkdir -p .claude
+settings=.claude/settings.local.json
+[[ ! -L "${settings}" && (! -e "${settings}" || -f "${settings}") ]] \
+  || { echo "refusing unsafe settings path: ${settings}" >&2; exit 1; }
+hook_command=$(cat <<'HOOK'
+bash -c 'set -Eeuo pipefail
+input=$(cat)
+name=$(jq -er '\''.name | strings | select(length > 0)'\'' <<<"${input}")
+cwd=$(jq -er '\''.cwd | strings | select(length > 0)'\'' <<<"${input}")
+case "${name}" in .|..|*[!A-Za-z0-9._-]*) echo "unsafe worktree name: ${name}" >&2; exit 1;; *) :;; esac
+repo=$(git -C "${cwd}" worktree list --porcelain | sed -n "s/^worktree //p;q")
+bare=$(git -C "${repo}" rev-parse --is-bare-repository); test "${bare}" = false
+worktree="${repo}/.worktrees/${name}"; branch="worktree-${name}"
+exclude=$(git -C "${repo}" rev-parse --path-format=absolute --git-path info/exclude)
+mkdir -p "$(dirname "${exclude}")" "${repo}/.worktrees"; touch "${exclude}"
+grep -Fqx "/.worktrees/" "${exclude}" || printf "%s\n" "/.worktrees/" >>"${exclude}"
+base="${CLAUDE_WORKTREE_BASE_REF:-}"
+if test -z "${base}"; then git -C "${repo}" fetch origin >&2 && base=$(git -C "${repo}" symbolic-ref --quiet --short refs/remotes/origin/HEAD || true); base="${base:-HEAD}"; fi
+git -C "${repo}" worktree add -b "${branch}" "${worktree}" "${base}" >&2
+cd "${worktree}"; pwd -P'
+HOOK
+)
+desired=$(jq -cn --arg command "${hook_command}" \
+  '[{hooks: [{type: "command", command: $command}]}]')
+write_settings=true
+if [[ -f "${settings}" ]]; then
+  current=$(jq -ce \
+    'select(type == "object" and ((has("hooks") | not) or (.hooks | type == "object")))' \
+    "${settings}") \
+    || { echo "refusing malformed or incompatible settings: ${settings}" >&2; exit 1; }
+  if jq -e '(.hooks? // {}) | has("WorktreeCreate")' "${settings}" >/dev/null; then
+    jq -e --argjson desired "${desired}" '.hooks.WorktreeCreate == $desired' \
+      "${settings}" >/dev/null \
+      || { echo "refusing to replace existing WorktreeCreate hooks" >&2; exit 1; }
+    write_settings=false
+  fi
+else
+  current='{}'
+fi
+if [[ "${write_settings}" == true ]]; then
+  tmp=$(mktemp "${settings}.XXXXXX")
+  trap 'rm -f "${tmp}"' EXIT
+  printf '%s\n' "${current}" | jq --argjson desired "${desired}" \
+    '.hooks = (.hooks // {}) | .hooks.WorktreeCreate = $desired' > "${tmp}"
+  mv "${tmp}" "${settings}"
+  trap - EXIT
+fi
+exclude=$(git rev-parse --path-format=absolute --git-path info/exclude)
+grep -Fqx '/.claude/settings.local.json' "${exclude}" \
+  || printf '%s\n' '/.claude/settings.local.json' >> "${exclude}"
+printf 'configured %s\n' "${settings}"
+REMOTE
+printf '%s\n' "${remote_script}" | bash -c "${OFFLOADER_TRANSPORT}"
+```
+
+The command places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`, starting from
+`origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
 `CLAUDE_WORKTREE_BASE_REF=HEAD` for Claude-owned worktrees that must inherit local commits.
 
 `WorktreeCreate` replaces Claude Code's default creation logic rather than complementing it, so
