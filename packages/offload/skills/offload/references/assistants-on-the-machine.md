@@ -5,9 +5,9 @@ authenticating it, its persistence across runs, and steering a live run from ano
 concerns the assistant itself, across every job it runs — not the anatomy of any one job.
 
 Its complement is `open-ended-runs.md`, which covers a **single open-ended run**: the task brief,
-safe command composition, and each harness's launch invocation. An open-ended hand-off needs both —
-read this file to get the assistant ready, then `open-ended-runs.md` to compose and dispatch the
-run.
+safe command composition, and each harness's launch invocation. Setup here is one-time and persists
+on the machine — once an assistant is configured, runs just use it. Come back to this file only to
+add or re-authenticate an assistant, or to set up remote control.
 
 The resident assistant may be **Codex** or **Claude Code**, depending on machine and user setup.
 Configure it once before using the open-ended path; if it is not configured, open-ended runs fail
