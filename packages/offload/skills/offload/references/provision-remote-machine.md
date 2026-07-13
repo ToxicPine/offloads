@@ -186,14 +186,13 @@ Do not use incidental tools such as `hostname` for this check; the target image 
 them. Do not tell the user "the transport works". Say the remote computer is reachable, then move to
 GitHub setup.
 
-## 8. Configure GitHub and assistants before any hand-off
+## 8. Configure GitHub and a coding assistant
 
 `offloader` sends work by pushing a branch to the project's git remote. The machine then clones or
 fetches that branch, does the work, and, on the open-ended path, pushes results back. The machine
 needs GitHub credentials that can read and write the user's repos, plus a name and email for commits.
-Open-ended hand-offs also need the chosen coding assistant, such as Codex or Claude Code, configured
-on the machine. Private repo cloning fails without GitHub setup, so configure this before the first
-real hand-off.
+The provisioned machine also needs a coding assistant, such as Codex or Claude Code, authenticated
+on the machine. Configure both before the first real hand-off.
 
 Before running these commands, tell the user:
 
@@ -211,10 +210,9 @@ fi
 <skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader-configurator -- --transport "$OFFLOADER_TRANSPORT" gh configure
 ```
 
-For open-ended work, configure an assistant target that `offloader-configurator` supports, such as
-`codex`.
-Follow the `offloader-configurator` skill for account prompts, device-code flows, API keys, and token
-handling. Credentials and assistant auth state must land on `/data` so they survive restarts.
+Next, continue with `assistants-on-the-machine.md` and configure an assistant target that
+`offloader-configurator` supports, such as `codex`. That reference also covers access from another
+device. Follow the `offloader-configurator` skill for account prompts and credentials.
 
 ## 9. Try a tiny run before anything real
 

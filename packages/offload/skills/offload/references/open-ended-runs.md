@@ -2,8 +2,8 @@
 
 An open-ended hand-off runs a coding harness (Claude Code or Codex) on the target machine. There is
 no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so it publishes its
-result, and dispatch it through `offloader` like any other command. The harness must already be
-configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
+result, and dispatch it through `offloader` like any other command. Machine-level assistant setup,
+authentication, and remote steering are covered in `assistants-on-the-machine.md`.
 
 The part you must get right is the task text. It needs two things:
 
@@ -42,32 +42,85 @@ pass the variable as one argument. This is the whole shape, here with Claude Cod
 (`skill_dir` is the `<skill-dir>` this skill resolves):
 
 ```bash
-remote_script=$(cat <<'REMOTE'
-cat > "${PWD}.run.sh" <<'RUN'
+remote_script=''
+while IFS= read -r line; do
+  remote_script+="${line}"$'\n'
+done <<'REMOTE'
+set -Eeuo pipefail
+log_file="${PWD}.log"
+run_file="${PWD}.run.sh"
+rm -f "${log_file}"
+cat > "${run_file}" <<'RUN'
+set -Eeuo pipefail
 task=$(cat <<'TASK'
 <objective, completion condition, and handoff context - any quotes, $vars, and `backticks` are safe here>
 TASK
 )
-echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
+run_branch=$(git rev-parse --abbrev-ref HEAD)
+run_commit=$(git rev-parse HEAD)
+echo "worktree: ${run_branch} @ ${run_commit}"
 status=complete
-claude -p --permission-mode bypassPermissions "/goal ${task}" || status=failed
+if ! claude -p --permission-mode bypassPermissions --output-format stream-json --verbose \
+  "/goal ${task}"; then
+  status=failed
+fi
 git add -A
-git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
+if ! git diff --cached --quiet; then
+  git commit -m "Offload Run Worktree State: status=${status}"
+fi
 git push -u origin HEAD
 [[ "${status}" == complete ]]
 RUN
-setsid bash "${PWD}.run.sh" > "${PWD}.log" 2>&1 < /dev/null &
-echo "run detached: pid ${!}, log ${PWD}.log"
+if command -v setsid >/dev/null 2>&1; then
+  setsid bash "${run_file}" > "${log_file}" 2>&1 < /dev/null &
+else
+  nohup bash "${run_file}" > "${log_file}" 2>&1 < /dev/null &
+fi
+run_pid=$!
+return_structured_error_if_seen() {
+  local error_line
+  [[ -r "${log_file}" ]] || return 0
+  error_line=$(jq -Rrs '
+    first(split("\n")[] as $line
+      | ($line | fromjson?)
+      | select(
+          (.error? != null) or
+          (.type == "result" and .is_error == true) or
+          (.type == "system" and .subtype == "api_retry") or
+          (.method == "error") or
+          (.method == "turn/completed" and
+            (.params.turn.status == "failed" or .params.turn.status == "interrupted")))
+      | $line) // empty
+  ' "${log_file}" 2>/dev/null || true)
+  if [[ -n "${error_line}" ]]; then
+    echo "run reported during launch check: ${error_line}; log ${log_file}" >&2
+    exit 1
+  fi
+}
+require_running() {
+  local run_rc=0
+  kill -0 "${run_pid}" 2>/dev/null && return 0
+  wait "${run_pid}" || run_rc=$?
+  echo "run stopped during launch check (exit ${run_rc}); log ${log_file}" >&2
+  exit 1
+}
+launch_deadline=$((SECONDS + 3))
+while ((SECONDS < launch_deadline)); do
+  return_structured_error_if_seen
+  require_running
+  sleep 0.1
+done
+return_structured_error_if_seen
+require_running
+echo "run started: pid ${run_pid}, log ${log_file}"
 REMOTE
-)
 : "${skill_dir:?resolve to the directory containing the offload SKILL.md}"
 "${skill_dir}/scripts/nix" run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"
 ```
 
-Two layers, one job each: the `RUN` script is the run itself — task, harness, publish wrapper —
-and the `REMOTE` script only writes it down and launches it detached, so the run survives
-disconnects (the mechanism, and the attached alternative for short watched runs, are in the
-`offloader` skill's Persistence section). Rules that make this work first time:
+The `RUN` script performs and publishes the work. The `REMOTE` script detaches it and waits briefly
+to confirm that it started. See the `offloader` skill's Persistence section for the attached
+alternative. Rules that make this work first time:
 
 - Keep every heredoc delimiter quoted (`<<'REMOTE'`) and distinct, and make sure no line of the
   task text equals a delimiter.
@@ -79,17 +132,22 @@ disconnects (the mechanism, and the attached alternative for short watched runs,
 - If `git status` on the target shows an unfinished merge or rebase, push what is committed and
   report rather than auto-committing over it.
 
-The dispatch returns as soon as the run starts, echoing the pid and log path. The outcome arrives
-as the status commit on the run branch; progress lives in `<worktree>.log`, and `<worktree>.run.sh`
-records what was launched — both beside the worktree, per-run unique, never swept into a commit.
+The dispatch waits about three seconds. It prints `run started:` when the process remains live and
+no structured error appears; otherwise it returns the error or early exit. For setup or
+authentication failures, follow `assistants-on-the-machine.md` rather than logging in inside the
+run. Later progress lives in `<worktree>.log`, and the outcome arrives as a status commit on the run
+branch. `<worktree>.run.sh` records what was launched. There is no separate launch-status artifact.
 
 ## Claude Code
 
 Claude Code runs goals from the CLI directly: `/goal` works in print mode, and one invocation runs
-the loop to completion. The harness line inside the wrapper:
+the loop to completion. Keep `--output-format stream-json --verbose` so launch failures appear in
+the output being checked. The harness invocation inside the wrapper is:
 
 ```bash
-claude -p --permission-mode bypassPermissions "/goal ${task}"
+task='<objective and handoff context>'
+claude -p --permission-mode bypassPermissions --output-format stream-json --verbose \
+  "/goal ${task}"
 ```
 
 - The goal condition may be up to 4,000 characters and must be checkable from the run's own output.
@@ -107,58 +165,47 @@ claude -p --permission-mode bypassPermissions "/goal ${task}"
 
 ## Codex
 
-Codex has no CLI goal command; its `/goal` exists only in the interactive TUI. **Default to
-`codex exec`; use the app-server goal API below only when the user asks for a run measured in hours
-or explicitly wants goal semantics (persisted objective, automatic continuation, budget tracking).**
-The harness line inside the wrapper:
-
-```bash
-codex exec --sandbox danger-full-access "${task}"
-```
-
-- One `codex exec` call runs a full multi-step turn chain to completion, so most open-ended tasks
-  fit a single call with a well-phrased goal and stopping condition in the prompt.
-- Follow up in the same session with `codex exec resume --last '<follow-up>'`.
-- Select behavior with `-m <model>` and `codex -c model_reasoning_effort=<level> exec …` when asked.
-
-### Codex goal runs (app-server)
-
 Codex's persisted-goal machinery is exposed only through the `codex app-server` JSON-RPC API
-(newline-delimited JSON over stdio), so this path scripts a small client. Drive the run off goal
-and turn status alone, in the script, never by reading the run's conversation: the event stream
-carries the whole conversation, which is far too heavy to feed to a model.
+(newline-delimited JSON over stdio), so this path scripts a small client. The driver follows goal
+status rather than reading the run's conversation.
 
-Use this driver as the harness step. The `RUN` script for this variant is the publish wrapper
-with the harness line swapped for a temp-file driver — written **outside the worktree** (never
-inside it, where `git add -A` would sweep it into the status commit), with `task` exported, since
-the driver runs as a child process and an unexported `task` would arrive empty. Launch it detached
-like any other run:
+Keep the outer `REMOTE` layer above unchanged. For Codex, replace its `RUN` heredoc body with the
+publish wrapper below, then put the following driver block at its placeholder. The temporary driver
+stays outside the worktree, and `task` is exported for the child process.
 
 ```bash
+set -Eeuo pipefail
 task=$(cat <<'TASK'
 <objective, completion condition, and handoff context>
 TASK
 )
 export task
-echo "worktree: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse HEAD)"
+run_branch=$(git rev-parse --abbrev-ref HEAD)
+run_commit=$(git rev-parse HEAD)
+echo "worktree: ${run_branch} @ ${run_commit}"
 driver_file=$(mktemp)
 cat > "${driver_file}" <<'DRIVER'
 # ... the driver script below ...
 DRIVER
 status=complete
-bash "${driver_file}" || status=failed
+if ! bash "${driver_file}"; then
+  status=failed
+fi
 rm -f "${driver_file}"
 git add -A
-git diff --cached --quiet || git commit -m "Offload Run Worktree State: status=${status}"
+if ! git diff --cached --quiet; then
+  git commit -m "Offload Run Worktree State: status=${status}"
+fi
 git push -u origin HEAD
 [[ "${status}" == complete ]]
 ```
 
-The driver itself sets the goal, kicks the first turn, then reacts only to status signals —
-`thread/goal/updated` notifications plus a `thread/goal/get` poll after each completed turn. Any
-error response is terminal, so a rejected request fails the run instead of hanging it:
+The driver sets the goal, resumes the thread, and follows goal status until the run ends. It also
+copies app-server replies to the run log so the outer launch check can return an error.
 
 ```bash
+set -Eeuo pipefail
+: "${task:?export task before running the driver}"
 rpc_dir=$(mktemp -d)
 mkfifo "${rpc_dir}/in" "${rpc_dir}/out"
 codex app-server < "${rpc_dir}/in" > "${rpc_dir}/out" &
@@ -169,8 +216,13 @@ trap '' PIPE
 send() { printf '%s\n' "${1}" >&3; }
 finish_goal() {
   case "${1}" in
-    complete) exit 0 ;;
-    blocked|budgetlimited|paused|usagelimited) echo "goal ended: ${1}" >&2; exit 1 ;;
+    complete)
+      exit 0
+      ;;
+    blocked|budgetlimited|paused|usagelimited)
+      echo "goal ended: ${1}" >&2
+      exit 1
+      ;;
     *) : ;;
   esac
 }
@@ -183,6 +235,7 @@ send "${payload}"
 thread=""
 get_id=3
 while IFS= read -r line <&4; do
+  printf '%s\n' "${line}"
   rpc_error=$(jq -r 'try (.error.message // empty)' 2>/dev/null <<<"${line}") || rpc_error=""
   if [[ -n "${rpc_error}" ]]; then
     echo "app-server error: ${rpc_error}" >&2
@@ -241,9 +294,7 @@ provisioned container).
 ## Simultaneous runs
 
 Concurrent dispatches are isolated by the offloader layout — own branch, own worktree per run (see
-the `offloader` skill's Concurrent Dispatches section). At the harness level the rule is session
-scoping: `codex exec resume --last` picks the most recent session **for its working directory**, so
-run it from that run's worktree — from anywhere else (or with `--all`) it can resume a different
-run's session. Claude Code sessions are likewise scoped to the directory they ran in. The wrapper
-and driver write nothing shared: the driver file is a fresh `mktemp` path, and `<worktree>.run.sh`
-and `<worktree>.log` derive from each run's own worktree path.
+the `offloader` skill's Concurrent Dispatches section). Claude Code sessions are likewise scoped
+to the directory they ran in. The wrapper and driver write nothing shared: the driver file is a
+fresh `mktemp` path, while `<worktree>.run.sh` and `<worktree>.log` derive from each run's own
+worktree path.
