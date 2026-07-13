@@ -86,8 +86,8 @@ Everything else is a choice of what to dispatch:
   `codex`) already on the target. Choose the harness in this order: the one the user asked for;
   the one this agent itself runs in, so the remote model is comparable, if it is configured on
   the target; otherwise whichever is configured. Compose the invocation and its publish wrapper
-  from `references/open-ended-runs.md`; the assistant is configured once through
-  `offloader-configurator` (`references/assistants-on-the-machine.md`). When reporting back, name
+  from `references/open-ended-runs.md`. If setup is missing, authentication fails, or the user
+  wants remote steering, read `references/assistants-on-the-machine.md`. When reporting back, name
   the harness only if it differs from the one dispatching the run.
 
 If a supporting skill is missing, try `npx skills --help` and `npx skills add <repo> --list`;
@@ -102,7 +102,7 @@ The steps below are in execution order, and the path branches once, at the targe
    (`references/provision-remote-machine.md`, with the user's consent), then rejoin here with a
    saved transport.
 3. Check the project rebuilds on the target.
-4. Hand it off.
+4. Hand it off and, for open-ended work, wait for its launch confirmation.
 5. Report back.
 
 **Use Nixie directly for local offload dependencies.** Resolve `<skill-dir>` as the directory
@@ -220,16 +220,17 @@ composition below already includes the detach.
 - Open-ended task: compose the publish-wrapped harness command into a `remote_script` variable
   exactly as `references/open-ended-runs.md` shows, then dispatch it the same way:
   `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"`.
-  The wrapper pushes the result back on the run branch when the run ends. This requires an
-  assistant, such as Codex or Claude Code, configured through `offloader-configurator`
-  (`references/assistants-on-the-machine.md`).
+  The wrapper pushes the result back on the run branch when the run ends. Report a successful
+  hand-off only when it prints `run started:`; otherwise relay the launch failure it returned.
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
 `.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`.
 
 **Report back.** Tell the user which branch receives the work, which target ran it, and how to check
-progress later. For a detached open-ended run, also relay the launch line the dispatch printed
-(pid and `<worktree>.log` path on the target). `offloader-target` is a target-side skill. It is useful when
+progress later. For a detached open-ended run, also relay the confirmed launch line the dispatch
+printed (pid and `<worktree>.log` path on the target). If the user asks to watch or steer the run
+from another device, follow `references/assistants-on-the-machine.md`. `offloader-target` is a
+target-side skill. It is useful when
 the user talks to an agent on the remote target, for example over Telegram. If the user is local
 only, use `OFFLOADER_TRANSPORT` to run a target-side command that asks the remote agent or configured
 assistant to inspect the run and print the answer back locally.

@@ -1,6 +1,6 @@
 ---
 name: offloader-target
-description: Use this to inspect long-running tasks the user dispatched to this machine through Offloader. This is relevant when asks about dispatched task status, dispatched task logs or output, whether a related command is still alive, or what branch/worktree a dispatched run used.
+description: Use this to inspect long-running tasks the user dispatched to this machine through Offloader. This is relevant when the user asks about dispatched task status, dispatched task logs or output, whether a related command is still alive, or what branch/worktree a dispatched run used.
 ---
 
 # Offloader Target Task State
@@ -28,33 +28,53 @@ Useful environment names: `OFFLOADER_REPO_PATH`, `OFFLOADER_REMOTE_ROOT`, `OFFLO
 List recent Offloader worktrees under the remote root:
 
 ```bash
+set -o pipefail
 root="${OFFLOADER_REMOTE_ROOT:-${HOME}/.remote-work}"
-find "$root/repos" -path '*/.git' -not -path '*/.bare/*' -printf '%T@ %h\n' 2>/dev/null \
+find "${root}/repos" -type d -name .git ! -path '*/.bare/*' -print 2>/dev/null \
+  | while IFS= read -r git_dir; do
+      worktree_path=${git_dir%/.git}
+      if modified=$(stat -c '%Y' "${worktree_path}" 2>/dev/null); then
+        :
+      else
+        modified=$(stat -f '%m' "${worktree_path}")
+      fi
+      printf '%s %s\n' "${modified}" "${worktree_path}"
+    done \
   | sort -nr \
-  | head -20
+  | head -n 20
 ```
 
 Inspect the selected worktree:
 
 ```bash
 worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
-git -C "$worktree" status --short --branch
-git -C "$worktree" log -1 --oneline
+git -C "${worktree}" status --short --branch
+git -C "${worktree}" log -1 --oneline
 ```
 
 Check recent file activity in a selected worktree:
 
 ```bash
-find "$worktree" -xdev -type f -printf '%T@ %p\n' 2>/dev/null \
+: "${worktree:?set worktree first}"
+set -o pipefail
+find "${worktree}" -xdev -type f -print 2>/dev/null \
+  | while IFS= read -r path; do
+      if modified=$(stat -c '%Y' "${path}" 2>/dev/null); then
+        :
+      else
+        modified=$(stat -f '%m' "${path}")
+      fi
+      printf '%s %s\n' "${modified}" "${path}"
+    done \
   | sort -nr \
-  | head -40
+  | head -n 40
 ```
 
 Look for a process tied to that worktree:
 
 ```bash
-pgrep -af "$worktree" || true
-ps -eo pid,ppid,etime,stat,cmd --sort=etime | rg -F "$worktree" || true
+: "${worktree:?set worktree first}"
+pgrep -fl "${worktree}" || true
 ```
 
 ## Local Branch Clues
@@ -74,11 +94,19 @@ offloader -- npm run dev
 offloader --command 'npm run test'
 ```
 
-Offloader writes the pushed repo state to a local worktree on this machine and runs the requested command there. Detached runs leave their output at `<worktree>.log`, and open-ended ones also leave `<worktree>.run.sh` (what was launched). Attached runs leave no log file of their own; for those, say so and report process state, worktree status, last commit, and recent file activity instead.
+Offloader writes the pushed repo state to a local worktree on this machine and runs the requested
+command there. Detached runs leave their output at `<worktree>.log`, and open-ended ones also leave
+`<worktree>.run.sh` (what was launched). The dispatch command returns an early launch failure
+directly; it does not leave a separate status artifact. Attached runs leave no log file of their
+own; for those, say so and report process state, worktree status, last commit, and recent file
+activity instead.
 
 ## Open-Ended Harness Runs
 
-Open-ended dispatches run a coding harness CLI in the worktree, usually `claude -p "/goal ..."` or `codex exec ...`, wrapped so worktree state is committed and pushed when the run ends. They are normally detached with `setsid`, so expect no parent session. Read progress and the launched script directly:
+Open-ended dispatches run a coding harness in the worktree, using `claude -p "/goal ..."` or a
+small `codex app-server` driver, wrapped so worktree state is committed and pushed when the run
+ends. They are detached with `setsid`, or `nohup` where `setsid` is unavailable, so expect no parent
+session. Read progress and the launched script directly:
 
 ```bash
 worktree="${HOME}/.remote-work/repos/gh/OWNER/REPO/offloader-run-id"
@@ -95,8 +123,18 @@ pgrep -fl 'claude|codex' || true
 Several runs can be live at once, and the command line rarely names the worktree. Attribute a harness process to a specific run by its working directory (on macOS targets, which have no `/proc`, use `lsof -a -p "${pid}" -d cwd` in place of the `readlink`):
 
 ```bash
+: "${worktree:?set worktree first}"
+set -o pipefail
+process_cwd() {
+  local pid="${1}"
+  if [[ -e "/proc/${pid}/cwd" ]]; then
+    readlink "/proc/${pid}/cwd"
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -a -p "${pid}" -d cwd -Fn 2>/dev/null | awk 'substr($0, 1, 1) == "n" { print substr($0, 2); exit }'
+  fi
+}
 while IFS= read -r pid; do
-  cwd=$(readlink "/proc/${pid}/cwd" 2>/dev/null) || cwd=""
+  cwd=$(process_cwd "${pid}") || cwd=""
   case "${cwd}" in
     "${worktree}"|"${worktree}"/*) ps -o pid,etime,command -p "${pid}" ;;
     *) : ;;
@@ -113,6 +151,7 @@ Offload Run Worktree State: status=<status>
 `status=complete` means the harness finished its goal; `status=failed` means it exited early and the commit holds partial work. Older runs used the subject prefix `Codex Goal Worktree State`. Find the latest outcome with:
 
 ```bash
+: "${worktree:?set worktree first}"
 git -C "${worktree}" log --decorate --oneline --grep='Worktree State: status=' -20
 git -C "${worktree}" log -1 --format=fuller
 ```
