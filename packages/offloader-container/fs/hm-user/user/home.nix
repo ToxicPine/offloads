@@ -28,12 +28,6 @@ let
     procps = procps-container;
   };
   opencode = import ../../opencode.nix { inherit pkgs; };
-  # Use the source checkout while building the image and its copied tree during runtime rebuilds.
-  git-worktrees-skill =
-    if builtins.pathExists "/opt/app/git-worktrees/skills/git-worktrees" then
-      /opt/app/git-worktrees/skills/git-worktrees
-    else
-      ../../../../git-worktrees/skills/git-worktrees;
   remote-control-supervisor = pkgs.writeShellApplication {
     name = "remote-control-supervisor";
     runtimeInputs = [ pkgs.coreutils ];
@@ -227,17 +221,13 @@ in
   imports = [
     (import ../../hm-base { })
     offloads.homeModules."offloader-skills"
+    offloads.homeModules."git-worktrees-skills"
     offloads.homeModules."vusperize-skills"
     offloads.homeModules."nestail-skills"
     ./managed.nix
   ];
 
   home.file = {
-    ".agents/skills/git-worktrees".source = git-worktrees-skill;
-    ".claude/skills/git-worktrees".source = git-worktrees-skill;
-    ".cursor/skills/git-worktrees".source = git-worktrees-skill;
-    ".hermes/skills/git-worktrees".source = git-worktrees-skill;
-
     ".local/libexec/offloads/claude-worktree-create".source =
       ../../hm-base/hooks/claude-worktree-create.sh;
 

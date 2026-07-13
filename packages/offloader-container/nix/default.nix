@@ -29,10 +29,6 @@ in
 import ../lib/image.nix {
   inherit pkgs;
   users = userConfig;
-  runtime = hm.runtime // {
-    trees = hm.runtime.trees // {
-      "/opt/app/git-worktrees" = ../../git-worktrees;
-    };
-  };
+  inherit (hm) runtime;
   system = systemConfig;
 }
