@@ -61,30 +61,15 @@ The `git-worktrees` skill covers only the Git lifecycle. Keep harness alignment 
 - Whichever workflow creates a worktree remains responsible for publishing and cleanup.
 
 When Claude Code itself should own creation through `--worktree`, `EnterWorktree`, or
-`isolation: worktree`, configure the provisioned target's creator as the sole `WorktreeCreate`
-handler, preserving unrelated settings:
+`isolation: worktree`, configure its user-scoped `~/.claude/settings.json` with a sole
+`WorktreeCreate` handler. The provisioned target embeds that handler directly in this settings
+file as a compact `bash -c` command; it does not install a separate creator script. User-managed
+targets need an equivalent command hook that reads `name` and `cwd` from Claude's JSON input and
+prints only the created worktree's absolute path on stdout.
 
-```json
-{
-  "hooks": {
-    "WorktreeCreate": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$HOME/.local/libexec/offloads/claude-worktree-create\""
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-The creator places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`, starting from
-`origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
-`CLAUDE_WORKTREE_BASE_REF=HEAD` in the hook command when Claude-owned worktrees must inherit local
-commits.
+The provisioned command places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`,
+starting from `origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
+`CLAUDE_WORKTREE_BASE_REF=HEAD` for Claude-owned worktrees that must inherit local commits.
 
 `WorktreeCreate` replaces Claude Code's default creation logic rather than complementing it, so
 Claude does not process `.worktreeinclude` afterward. Copy explicitly approved ignored files in a
