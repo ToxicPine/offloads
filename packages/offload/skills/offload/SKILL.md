@@ -85,10 +85,12 @@ Everything else is a choice of what to dispatch:
 - An open-ended task ("make this feature work") dispatches a coding harness CLI (`claude`,
   `codex`) already on the target. Choose the harness in this order: the one the user asked for;
   the one this agent itself runs in, so the remote model is comparable, if it is configured on
-  the target; otherwise whichever is configured. Compose the invocation and its publish wrapper
-  from `references/open-ended-runs.md`; the assistant is configured once through
-  `offloader-configurator` (`references/assistants-on-the-machine.md`). When reporting back, name
-  the harness only if it differs from the one dispatching the run.
+  the target; otherwise whichever is configured. Two references cover this path and you need both:
+  `references/open-ended-runs.md` composes and dispatches one run, and
+  `references/assistants-on-the-machine.md` covers the assistant it runs on — setup and auth (via
+  `offloader-configurator`), persistence, and steering a live run. Ready the assistant first, then
+  compose the run. When reporting back, name the harness only if it differs from the one dispatching
+  the run.
 
 If a supporting skill is missing, try `npx skills --help` and `npx skills add <repo> --list`;
 `offloader` and `offloader-configurator` are in `ToxicPine/offloads`.
@@ -221,8 +223,8 @@ composition below already includes the detach.
   exactly as `references/open-ended-runs.md` shows, then dispatch it the same way:
   `<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- bash -lc "${remote_script}"`.
   The wrapper pushes the result back on the run branch when the run ends. This requires an
-  assistant, such as Codex or Claude Code, configured through `offloader-configurator`
-  (`references/assistants-on-the-machine.md`).
+  assistant, such as Codex or Claude Code, set up and authenticated on the target beforehand; see
+  `references/assistants-on-the-machine.md` (which also covers steering the run once it is live).
 
 The work starts inside the project directory on the remote target, so the environment (`devShell`,
 `.envrc`) loads on its own. Do not wrap the command in `cd` or `nix develop`.

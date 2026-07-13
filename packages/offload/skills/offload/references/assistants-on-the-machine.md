@@ -1,12 +1,19 @@
 # Coding assistants on the machine
 
-Open-ended hand-offs run a coding assistant's own CLI on the target machine (see
-`open-ended-runs.md`). That assistant may be **Codex** or **Claude Code**, depending on machine and
-user setup. Configure the coding assistant on the target once before using this path. If it is not
-configured, open-ended runs fail before they start.
+This file is about the coding assistant as a **standing resident of the target**: setting it up and
+authenticating it, its persistence across runs, and steering a live run from another device. It
+concerns the assistant itself, across every job it runs — not the anatomy of any one job.
 
-A fixed-command hand-off (`<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <cmd>`) does not need
-assistant setup.
+Its complement is `open-ended-runs.md`, which covers a **single open-ended run**: the task brief,
+safe command composition, and each harness's launch invocation. An open-ended hand-off needs both —
+read this file to get the assistant ready, then `open-ended-runs.md` to compose and dispatch the
+run.
+
+The resident assistant may be **Codex** or **Claude Code**, depending on machine and user setup.
+Configure it once before using the open-ended path; if it is not configured, open-ended runs fail
+before they start. A fixed-command hand-off
+(`<skill-dir>/scripts/nix run github:ToxicPine/offloads#offloader -- -- <cmd>`) runs no assistant and
+needs none of this.
 
 ## Configure the assistant
 

@@ -1,9 +1,14 @@
 # Open-ended runs with coding harnesses
 
-An open-ended hand-off runs a coding harness (Claude Code or Codex) on the target machine. There is
-no dedicated launcher tool: compose the harness's own CLI invocation, wrap it so it publishes its
-result, and dispatch it through `offloader` like any other command. The harness must already be
-configured on the target through `offloader-configurator`; see `assistants-on-the-machine.md`.
+This file is about the anatomy of a **single open-ended run**: composing a coding harness's own CLI
+invocation, wrapping it so it publishes its result, and dispatching it through `offloader` like any
+other command. There is no dedicated launcher tool. It concerns one job, not the harness in general.
+
+Its complement is `assistants-on-the-machine.md`, which covers the harness as a **standing resident
+of the target** — setup and authentication, persistence, and steering a live run from another
+device. An open-ended hand-off needs both: the harness (Claude Code or Codex) must already be set up
+and authenticated there before anything here will run. Read that file first to ready the assistant,
+then compose the run here.
 
 The part you must get right is the task text. It needs two things:
 
