@@ -52,11 +52,44 @@ cd "${worktree}"
 # Continue with the matching Claude Code or Codex recipe below; both use this PWD.
 ```
 
-Claude Code can run directly in that existing worktree. If Claude Code itself owns creation, the
-same skill documents its `WorktreeCreate` hook so Claude places the checkout under `.worktrees`.
-That hook replaces Claude's default creator; do not combine it with a separately prepared checkout.
-Codex only needs the selected directory as `cwd` and does not need to adopt it as Codex-managed.
-Whichever workflow creates the worktree remains responsible for publishing and cleanup.
+The `git-worktrees` skill covers only the Git lifecycle. Keep harness alignment here:
+
+- Codex only needs the selected directory as `cwd`; it does not need to adopt the checkout as
+  Codex-managed.
+- Claude Code can run directly in an existing worktree. Do not use its creation mode when another
+  workflow already owns the checkout.
+- Whichever workflow creates a worktree remains responsible for publishing and cleanup.
+
+When Claude Code itself should own creation through `--worktree`, `EnterWorktree`, or
+`isolation: worktree`, configure the provisioned target's creator as the sole `WorktreeCreate`
+handler, preserving unrelated settings:
+
+```json
+{
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.local/libexec/offloads/claude-worktree-create\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The creator places the checkout at `<repo>/.worktrees/<name>` on `worktree-<name>`, starting from
+`origin/HEAD` and falling back to the launch checkout's `HEAD`. Set
+`CLAUDE_WORKTREE_BASE_REF=HEAD` in the hook command when Claude-owned worktrees must inherit local
+commits.
+
+`WorktreeCreate` replaces Claude Code's default creation logic rather than complementing it, so
+Claude does not process `.worktreeinclude` afterward. Copy explicitly approved ignored files in a
+customized hook when needed; never copy secrets implicitly. The returned checkout remains a normal
+Git worktree, so Claude handles its standard Git cleanup without a custom `WorktreeRemove` hook.
 
 ## Composing the remote command safely
 

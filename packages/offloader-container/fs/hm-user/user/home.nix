@@ -238,6 +238,9 @@ in
     ".cursor/skills/git-worktrees".source = git-worktrees-skill;
     ".hermes/skills/git-worktrees".source = git-worktrees-skill;
 
+    ".local/libexec/offloads/claude-worktree-create".source =
+      ../../hm-base/hooks/claude-worktree-create.sh;
+
     ".codex/packages/standalone/current/codex" = {
       source = "${codex-container}/bin/codex";
       force = true;
