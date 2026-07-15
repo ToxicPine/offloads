@@ -1,4 +1,5 @@
 {
+  "vendor": true,
   "tasks": {
     "start": "deno run --node-modules-dir=auto --allow-net=0.0.0.0,127.0.0.1,localhost --allow-env --allow-read=. src/server.ts",
     "token": "deno run --allow-env src/cli.ts token"

@@ -15,10 +15,14 @@ let
       ./src
     ];
   };
+  depsIdentity = builtins.substring 0 16 (
+    builtins.hashString "sha256" "${deno}:${src}"
+  );
 
   denoDeps = stdenvNoCC.mkDerivation {
     pname = "nestail-deno-deps";
-    inherit version src;
+    version = "${version}-${depsIdentity}";
+    inherit src;
 
     nativeBuildInputs = [
       deno
@@ -28,8 +32,9 @@ let
       runHook preBuild
 
       export DENO_DIR="$TMPDIR/deno-cache"
-      deno cache \
-        --vendor=true \
+      deno install \
+        --entrypoint \
+        --frozen \
         --config deno.json \
         --lock deno.lock \
         src/cli.ts
@@ -40,6 +45,7 @@ let
     installPhase = ''
       runHook preInstall
 
+      # Deno's setup cache is generated install state, not dependency content.
       rm -f node_modules/.deno/.setup-cache.bin
 
       mkdir -p "$out"
@@ -55,7 +61,11 @@ let
 
     outputHashAlgo = "sha256";
     outputHashMode = "recursive";
-    outputHash = "sha256-phFhKX+q+BvGSgYomAdGK+uZgoT8c1BzwBj5sH+DHTM=";
+    outputHash = "sha256-Gucn4pUSfoSgM5eyb/z92+d5Adt/etwxIYaqEt3yz5U=";
+
+    # Keep the fixed-output tree exactly as Deno generated it. Generic
+    # fixups can rewrite vendored files differently on different hosts.
+    dontFixup = true;
   };
 in
 stdenvNoCC.mkDerivation {
